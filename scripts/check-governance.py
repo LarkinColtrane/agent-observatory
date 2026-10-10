@@ -367,7 +367,9 @@ def check_state(ctx: Ctx) -> None:
         except (subprocess.CalledProcessError, FileNotFoundError):
             remotes = ""
         if not (_text(repo.get("required_owner")) and _text(repo.get("required_name"))) or not re.search(
-            rf"(?:github\.com[/:]){re.escape(name)}(?:\.git)?\s", remotes
+            # Host-anchored: the URL must *start* with a GitHub prefix (review N4b).
+            rf"(?m)^\S+\t(?:https://github\.com/|git@github\.com:|ssh://git@github\.com/){re.escape(name)}(?:\.git)?\s",
+            remotes,
         ):
             ctx.err(f"repository.dedicated is true but no git remote points at '{name}'")
 

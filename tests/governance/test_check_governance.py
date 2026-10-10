@@ -299,6 +299,10 @@ class TestGovernanceState(CheckerCase):
         self.assertFails(r"no git remote points at 'LarkinColtrane/agent-observatory'")
         self.git("remote", "add", "origin", "https://example.invalid/evil/agent-observatory.git")
         self.assertFails(r"no git remote points at 'LarkinColtrane/agent-observatory'")  # B-24 (N4)
+        for bad in ("https://evil.example.invalid/github.com/LarkinColtrane/agent-observatory.git",  # N4b
+                    "https://github.com/LarkinColtrane/agent-observatory-fork.git"):
+            self.git("remote", "set-url", "origin", bad)
+            self.assertFails(r"no git remote points at 'LarkinColtrane/agent-observatory'")
         self.git("remote", "set-url", "origin", "https://github.com/LarkinColtrane/agent-observatory.git")
         out = self.run_checker().stdout
         self.assertNotIn("no git remote points", out)
