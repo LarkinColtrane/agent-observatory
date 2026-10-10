@@ -351,7 +351,8 @@ class TestGovernanceState(CheckerCase):
     def test_invalid_ran_result_combination(self) -> None:
         report = self.path("docs/phases/P0-gate-report.md")
         text = report.read_text()
-        new, n = re.subn(r"^(\|\s*12\s*\|.*?\|.*?\|)\s*no\s*\|\s*not_run\s*\|", r"\1 no | pass |", text, flags=re.M)
+        # Edit only the current run's row (superseded runs keep older tables).
+        new, n = re.subn(r"^(\|\s*12\s*\|.*?\|.*?\|)\s*no\s*\|\s*not_run\s*\|", r"\1 no | pass |", text, count=1, flags=re.M)
         self.assertEqual(n, 1, "fixture drift: gate row 12 not found")
         report.write_text(new)
         self.assertFails(r"item 12: invalid \(ran=no, result=pass\)")
