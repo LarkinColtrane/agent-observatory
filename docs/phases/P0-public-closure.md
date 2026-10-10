@@ -67,8 +67,10 @@ This evidence was merged through the protected path: feature branch
 
 ## Public-repository security settings
 
-Dependency graph on; secret scanning and push protection **disabled** (owner
-action, TD-011 — gitleaks in pre-commit and CI remains the enforced control);
+Dependency graph on; secret scanning and push protection **enabled** by the
+owner after this closure (verified 21:22 UTC; TD-011 repaid), in addition to
+gitleaks in pre-commit and CI; ruleset follow-ups applied (squash-only
+allowed merge method, dismiss stale approvals on);
 Dependabot alerts and Actions default token permissions not verifiable from
 the session (proxy 403).
 
