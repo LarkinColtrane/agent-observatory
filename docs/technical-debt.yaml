@@ -31,22 +31,22 @@ debt:
   - id: TD-002
     title: Project not yet in its dedicated private repository
     description: >
-      All agent-observatory work is on branch claude/agent-observatory-governance
+      agent-observatory was developed on branch claude/agent-observatory-governance
       of the public practice repository LarkinColtrane/Og-Repo. ADR-0004
-      requires a dedicated private repository named agent-observatory. The
-      repository does not exist yet and the agent cannot create it (owner
-      action). Migration procedure is prepared and tested in
-      docs/migration/dedicated-repo-migration.md. Until it is done, the P0
-      checkpoint tag cannot be created in the correct repository.
+      required a dedicated private repository. The agent could not create it
+      (GitHub App lacks repository-creation permission); the owner created
+      LarkinColtrane/agent-observatory (private) and the agent migrated the
+      project into it (docs/migration-provenance.md).
     severity: high
     status: repaid
     owner: project-owner
     component: C12
     blocks: [P1]
-    repayment_trigger: Owner creates the private repository; migration verified (clean history scan, no practice files, main established, P0 tag pushed).
+    repayment_trigger: Private repository exists; migration verified (identical trees/metadata, clean history scan, no practice files, main established and fetched back). The P0 tag is tracked by the P0 gate (item 12), not here.
     recorded: 2026-10-10
     history:
       - 2026-10-10: originally low severity "decide on dedicated repo or cleanup"; owner decided on a dedicated private repo; raised to high and made blocking for P1.
+      - 2026-10-10: repayment trigger amended to drop "P0 tag pushed", which belongs to the P0 gate (post-migration review PM-03).
       - 2026-10-10: repaid — owner created private LarkinColtrane/agent-observatory; 5 project commits migrated with identical trees and metadata (docs/migration-provenance.md); pushed to main and verified by fetch; no practice-repository files or history. The P0 tag is tracked by the P0 gate (item 12), not by this item.
 
   - id: TD-003
@@ -83,10 +83,11 @@ debt:
     owner: project-owner
     component: C11
     blocks: [P1]
-    repayment_trigger: Owner applies docs/repository-settings.md; an agent verifies the protection via a read of the settings page or a rejected direct push.
+    repayment_trigger: Owner applies the ruleset in docs/repository-settings.md (targets main and protection-probe, no bypass actors); an agent verifies (a) branches/main reports protected with the governance check required and (b) a direct push, a force-push and a deletion of protection-probe are each rejected. Direct pushes to main are never used as a test.
     recorded: 2026-10-10
     history:
       - 2026-10-10: repository created and migrated; settings/protection writes confirmed impossible for the agent (proxy policy + missing Administration permission).
+      - 2026-10-10: verification method changed to a probe branch under the same ruleset, because the readable API cannot show admin enforcement, force-push or deletion settings (post-migration review PM-02).
 
   - id: TD-005
     title: Secret-scan script pinned for linux x86_64 only
@@ -123,6 +124,10 @@ debt:
       before review can be recorded, but it cannot tell who wrote a line; a
       pasted verdict passes (Reviewer A, verification round 2). Mitigation
       now: every verdict line links to the reviewer's own report file.
+      Related limit (PM-04): the required governance check runs the PR's own
+      copy of the checker and workflow, so with 0 required approvals a PR
+      could weaken the checker and pass itself; only independent review
+      (policy) prevents that until a second reviewer identity exists.
       Enforcement requires CODEOWNERS + branch protection so verdict/record
       changes need the reviewer's approval (TD-004).
     severity: low

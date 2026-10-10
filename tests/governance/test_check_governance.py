@@ -552,6 +552,11 @@ class TestSecretPatterns(CheckerCase):
         self.path("big.txt").write_bytes(b"x" * (6 * 1024 * 1024))
         self.assertFails(r"big\.txt \(working tree\) exceeds \d+ bytes; not scanned")
 
+    def test_literal_still_flagged_next_to_code(self) -> None:
+        value = "Zx9" * 6
+        self.path("settings_code.py").write_text('token = os.environ.get("X")\nfallback_token = "' + value + '"\n')
+        self.assertSecretFlagged("working tree", "generic-secret-assignment", value)
+
     def test_prefixed_password_and_userless_url(self) -> None:
         cases = {
             "generic-secret-assignment": "DB_" + "PASSWORD=" + "s3cr3tVal!",
@@ -566,6 +571,7 @@ class TestSecretPatterns(CheckerCase):
 
     def test_placeholders_not_flagged(self) -> None:
         self.path(".env.example").write_text("API_KEY=<your-key-here>\npassword: changeme-placeholder\n")
+        self.path("settings_code.py").write_text('token = os.environ.get("GITHUB_TOKEN")\napi_key = load_secret("x")\n')
         res = self.run_checker()
         self.assertEqual(res.returncode, 0, res.stdout)
 

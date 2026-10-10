@@ -53,8 +53,8 @@ Statuses: `not_drafted` → `draft` → `in_review` → `approved` → `frozen` 
 Parallel implementation against a contract is allowed only at `frozen`.
 `approved` = both reviewers' approving verdicts are recorded; `frozen` =
 additionally an annotated tag `contract-<id>-v<version>` exists. Contract tags
-are created only in the dedicated repository (TD-002), so the process
-contracts cannot be `frozen` before migration. The checker enforces all of this.
+are created only in the dedicated repository; the process contracts are frozen
+when their tags are created there. The checker enforces all of this.
 
 ## Current owners and claims
 

@@ -33,7 +33,7 @@ the engineering foundation.
 | Implementation agents | 5–6 | Execute one task contract each, writing only inside their claimed paths. |
 | Reviewer A | 1 | Independent specialist review: **security + data integrity**. |
 | Reviewer B | 1 | Independent specialist review: **concurrency + architecture**. |
-| Integration / validation agent | 1 | Sole merger to the integration branch; runs L2/L3, failure injection; writes gate reports. |
+| Integration / validation agent | 1 | Sole merger to `main` (squash-merged pull requests, one at a time); runs L2/L3, failure injection; writes gate reports. |
 
 **Separation of duties.** One agent holds one role at a time. No agent reviews,
 integrates, or approves work it authored. Anything the coordinator authors
@@ -116,7 +116,7 @@ Coordinator writes task contract (agent-task-contract.md),
   → L2 checks
   → handoff (agent-handoff-contract.md)
   → independent review (+ specialist if triggered)
-  → integrator merges, re-runs L1/L2 on integrated branch
+  → integrator squash-merges the PR into `main`, re-runs L1/L2 on `main`
   → commit checkpoint; coordinator releases claim
 … repeat …
   → integrator runs L3, writes gate report → reviewers sign off

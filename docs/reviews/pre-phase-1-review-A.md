@@ -74,3 +74,19 @@ resolved. Re-ran all round-1 attacks on clones: each now fails (rc=1) with
 the expected message; no secret value echoed. Notes (MINOR): pasted verdict
 lines are indistinguishable from real ones (→ TD-007, enforced by TD-004);
 claim overlap was case-sensitive (fixed in 368429f).
+
+## Post-migration review (dedicated repository)
+
+**Review of 254e400 — REQUEST_CHANGES.** Provenance sound: all 5
+original→migrated pairs verified identical (tree minus practice files;
+author/dates/message); single root; no practice-repo commits. Findings: PM-01
+(MAJOR, gate run 4 claimed tests OK at a1dc2db where one failed), PM-02
+(MAJOR, TD-004 verification blind to admin bypass/force-push/deletion), PM-03,
+PM-04, PM-05 (MINOR).
+
+**Verification of fixes (staged tree) — APPROVE_WITH_NOTES.** PM-01..PM-05
+resolved; checker PASS, 76 tests OK on a snapshot copy. Notes: N-A record
+verdicts in checker-parsed form before tagging; N-B ruleset-required checks
+may not appear in `branches/main` (untested). Disclosure: one unittest and
+check-repo-protection run executed inside the repository working tree
+(no tracked changes; only ignored `__pycache__`).

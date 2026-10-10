@@ -76,6 +76,32 @@ Reviewer reports with their own verification results:
 [pre-phase-1-review-A.md](pre-phase-1-review-A.md) ·
 [pre-phase-1-review-B.md](pre-phase-1-review-B.md).
 
+## Post-migration review (dedicated repository, commit 254e400)
+
+Reviewer A: REQUEST_CHANGES (PM-01, PM-02 MAJOR; PM-03..PM-05 MINOR) — all 5
+original→migrated pairs independently verified identical. Reviewer B:
+APPROVE_WITH_NOTES (B-25..B-29 MINOR + stale-doc list) — legitimate closure
+sequence verified to pass without deadlock. Independent validation agent:
+repository fully recoverable from a clean GitHub clone.
+
+| ID | Sev | Finding | Resolution |
+|---|---|---|---|
+| PM-01 / B-28 | MAJOR / MINOR | Gate run 4 (in `a1dc2db`) claimed 68 tests OK while one failed; tag would have landed there | Run 4 kept as superseded with an explicit correction; run 5 re-executed on the new gate commit; tag goes on that commit only after its CI passes |
+| PM-02 | MAJOR | TD-004 verification could not see admin bypass / force-push / deletion; "rejected direct push" contradicted the settings page | Ruleset with empty bypass list targeting `main` **and** `protection-probe`; agent verifies by rejected push / force-push / delete on the probe branch (never `main`); TD-004 trigger rewritten |
+| PM-03 | MINOR | TD-002 repaid while trigger mentioned the P0 tag; stale tense | Trigger amended (tag belongs to the P0 gate), description past tense, history entry added |
+| PM-04 | MINOR | Required check runs the PR's own checker copy; 0 approvals | Documented next to TD-007 and in repository-settings.md |
+| PM-05 | MINOR | Cheap protections missing | Read-only workflow token, allowed-actions policy, Dependabot alerts, secret scanning if offered — added to owner settings |
+| B-25 | MINOR | TD-004 repayable by YAML edit alone | `scripts/check-repo-protection.py` in CI: fails if TD-004 is repaid but `main` is unprotected or `governance` not required; 7 tests |
+| B-26 | MINOR | Required check depends on external downloads | Owner break-glass procedure documented |
+| B-27 | MINOR | Up-to-date requirement × parallel PRs without merge queue | Integrator merges one PR at a time, updates only the next; CI budget in phase plans |
+| B (note) | MINOR | `cancel-in-progress` cancelled `main` runs | Cancellation limited to pull-request runs |
+| B-29 | MINOR | "Integration branch" stale vs squash-PR-to-`main`; squash changes SHA | Operating contract, rollback and parallel-work policies updated; handoff records PR head SHA, integrator records squash SHA |
+| B (stale) | MINOR | phase-quality-gates register, component-ownership, gate header | Updated |
+| (bandit) | MEDIUM | B310 found by the coordinator's run-5 bandit pass: `urlopen` on an env-controlled URL | https-only validation + test |
+| (checker) | — | Generic-secret pattern flagged `token = os.environ.get(...)` | Call expressions excluded; test proves literals next to code are still flagged |
+| N-A | MINOR | Reviewer A's post-migration REQUEST_CHANGES existed only as prose | Recorded as checker-parsed verdict lines in order (A REQUEST_CHANGES → A APPROVE_WITH_NOTES; B APPROVE_WITH_NOTES) |
+| N-B | MINOR | Ruleset-required checks may not appear in `branches/main` | `check-repo-protection.py` also reads `rules/branches/main` and accepts ruleset protection/required checks; 3 tests |
+
 ## Final verdicts
 
 Recorded in the form the checker parses (latest line per reviewer counts).
@@ -86,3 +112,6 @@ agent. The checker verifies consistency, not authorship (TD-007).
 <!-- final-verdicts -->
 - **Reviewer A final outcome:** APPROVE_WITH_NOTES — see [pre-phase-1-review-A.md](pre-phase-1-review-A.md), verification round 2
 - **Reviewer B final outcome:** APPROVE_WITH_NOTES — see [pre-phase-1-review-B.md](pre-phase-1-review-B.md), verification round 2
+- **Reviewer A final outcome:** REQUEST_CHANGES — post-migration review of 254e400, see [pre-phase-1-review-A.md](pre-phase-1-review-A.md) "Post-migration review"
+- **Reviewer B final outcome:** APPROVE_WITH_NOTES — post-migration review of 254e400, see [pre-phase-1-review-B.md](pre-phase-1-review-B.md) "Post-migration review"
+- **Reviewer A final outcome:** APPROVE_WITH_NOTES — verification of post-migration fixes, see [pre-phase-1-review-A.md](pre-phase-1-review-A.md) "Post-migration review" (notes N-A, N-B applied)

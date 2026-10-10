@@ -13,7 +13,8 @@ permissions:
 
 concurrency:
   group: governance-${{ github.ref }}
-  cancel-in-progress: true
+  # Cancel superseded PR runs only; every push to main gets a completed run.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   governance:
@@ -39,3 +40,7 @@ jobs:
         run: pre-commit run --all-files --show-diff-on-failure
       - name: Secret scan (full history)
         run: scripts/secret-scan.sh
+      - name: Repository protection matches TD-004
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python -I scripts/check-repo-protection.py

@@ -10,8 +10,8 @@ enforces its consistency with gate reports and the debt register.
 
 | Phase | Name | Status |
 |---|---|---|
-| P0 | Governance | gate_review — blocked on checkpoint in dedicated repo (TD-002) |
-| P1 | Engineering foundation | not_started — blocked (TD-002, TD-004) |
+| P0 | Governance | gate_review → closed once `phase-P0-v1.1.0` is pushed and recorded |
+| P1 | Engineering foundation | not_started — blocked (TD-004) |
 | P2 | Universal agent event protocol | not_started |
 | P3 | Adapter / SDK layer | not_started |
 | P4 | Agent state engine | not_started |

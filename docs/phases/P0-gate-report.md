@@ -1,5 +1,32 @@
 # P0 Gate Report — Governance
 
+- Phase: P0 · Run 5 · Date: 2026-10-10 · Repository: `LarkinColtrane/agent-observatory` (private)
+- Plan: [P0-plan.md](P0-plan.md) (approves n/a items 1, 3, 4, 6, 7, 9)
+- Gate commit: **the commit that adds this run** (the post-migration review fixes). `phase-P0-v1.1.0` is created on exactly this commit after its CI run passes; the closure commit then records the tag, the CI run, and the independent re-validation.
+- Run by: coordinator (items 2, 5, 8, 11 below, on the staged gate commit); GitHub Actions `governance` workflow (cited in the closure commit); independent validation agent (clean clone from GitHub of `254e400`: checker PASS, 68 tests OK, gitleaks 8 commits no leaks, pre-commit pass; re-run on the gate commit recorded in the closure commit).
+- Environment: Linux x86_64, Python 3.13.16 (local) / 3.12 (CI), pre-commit 4.0.1, PyYAML 6.0.2 (hash-pinned), gitleaks 8.21.2 (checksum-verified).
+
+| # | Check | Command | Ran | Result | Notes |
+|---|---|---|---|---|---|
+| 1 | Full test suite | — | no | not_applicable | Approved in P0 plan: no application code |
+| 2 | Lint | `pre-commit run check-yaml --all-files` · `pre-commit run check-json --all-files` · `python -I scripts/check-governance.py` | yes | pass | check-yaml Passed; check-json Skipped (no JSON files); checker PASS |
+| 3 | Format | — | no | not_applicable | Approved in P0 plan; whitespace/EOL hygiene covered by item 5 |
+| 4 | Strict typecheck | — | no | not_applicable | Approved in P0 plan: no typed application code |
+| 5 | Pre-commit | `SKIP=no-commit-to-branch pre-commit run --all-files` | yes | pass | Exit 0, no files modified (branch guard skipped because the gate runs on `main`, as in CI). CI on this commit: recorded in the closure commit |
+| 6 | Docker | — | no | not_applicable | Approved in P0 plan: no images |
+| 7 | Migrations | — | no | not_applicable | Approved in P0 plan: no database |
+| 8 | Security checks | `scripts/secret-scan.sh` · `scripts/secret-scan.sh --working-tree` · `pip-audit -r requirements-governance.txt` · `bandit -r scripts/ tests/` | yes | pass | gitleaks: "8 commits scanned … no leaks found"; working tree: no leaks; pip-audit: no known vulnerabilities; bandit: HIGH 0, MEDIUM 0 (one B310 found during this run and fixed: https-only API URL), LOW 17 (B603×8, B607×7, B404×2) |
+| 9 | Failure injection | — | no | not_applicable | Approved in P0 plan: product failure injection; no product |
+| 10 | Independent review | Reviewer A + Reviewer B: initial review, two verification rounds, post-migration review (+ verification of its fixes) | yes | pass | Latest verdicts recorded in `docs/reviews/pre-phase-1-review-resolution.md` |
+| 11 | Registers | `python -I scripts/check-governance.py` · `python -I -m unittest discover -s tests/governance -t . -v` | yes | pass | Checker prints `info: register counts: assumptions=8, debt=7 (open debt=4)`; Ran 79 tests … OK |
+| 12 | Git checkpoint | `git tag -a phase-P0-v1.1.0` on this commit + `git push origin phase-P0-v1.1.0` | no | not_run | Next step of the closure sequence; recorded by the closure commit |
+
+## Superseded runs
+
+### Run 4 (commit `a1dc2db` — superseded)
+
+**Correction (post-migration review PM-01 / B-28):** row 11 below recorded "Ran 68 tests … OK", but at `a1dc2db` one test (`test_invalid_ran_result_combination`) **failed**; the commit was pushed without gating on the test result. CI run #2 on `a1dc2db` failed accordingly. Fixed forward in `254e400` (no history rewrite). No tag was ever created on `a1dc2db`.
+
 - Phase: P0 · Run 4 · Date: 2026-10-10 · Repository: `LarkinColtrane/agent-observatory` (private)
 - Plan: [P0-plan.md](P0-plan.md) (approves n/a items 1, 3, 4, 6, 7, 9)
 - Scope: the migrated history (`docs/migration-provenance.md`) plus the gate commit recording the migration. Content of commits 1–5 is tree-identical to run 3's validated commits.
@@ -22,7 +49,6 @@
 | 11 | Registers | `python -I scripts/check-governance.py` · `python -I -m unittest discover -s tests/governance -t . -v` | yes | pass | Checker prints `info: register counts: assumptions=8, debt=7 (open debt=4)`; Ran 68 tests … OK |
 | 12 | Git checkpoint | `git tag -a phase-P0-v1.1.0` on this gate commit + `git push origin phase-P0-v1.1.0` | no | not_run | Next step of the closure sequence; recorded by the closure commit |
 
-## Superseded runs
 
 ### Run 3 (temporary session, practice-repository branch — superseded by run 4 after migration)
 

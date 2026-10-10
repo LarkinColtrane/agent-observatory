@@ -8,7 +8,7 @@ before making it.
 | Checkpoint | When | Form |
 |---|---|---|
 | Task commit | Every task completion (and partial handoff) | Commit on task branch, message `AO-<task_id>: <summary>` |
-| Integration commit | After each task merges and L1/L2 pass | Merge/commit on integration branch |
+| Integration commit | After each task's PR passes L1/L2 and review | Squash-merge commit on `main` (the handoff records the PR head SHA; the integrator records the resulting squash SHA) |
 | Phase tag | After the L3 gate passes | Annotated tag `phase-P<n>-v<semver>` (P0 included) |
 | Contract tag | When a shared contract is frozen | Annotated tag `contract-<id>-v<semver>` |
 
@@ -17,7 +17,7 @@ repository only. A tag that exists only locally is not a checkpoint.
 
 ## Rules
 
-- Never rewrite published history (`main`, integration branch, tags). Revert
+- Never rewrite published history (`main`, tags). Revert
   with `git revert`, not reset/force-push — **except** for a secret incident
   (below).
 - Force-push is allowed only on an agent's own unshared task branch.
@@ -29,7 +29,7 @@ repository only. A tag that exists only locally is not a checkpoint.
 
 ## Rollback levels
 
-1. **Task rollback** — `git revert <task commit(s)>` on the integration branch;
+1. **Task rollback** — `git revert <squash commit>` on `main` (via a PR);
    re-run L1/L2 for affected components. If the task added a migration, run its
    downgrade first.
 2. **Phase rollback** — **schema first, then code**: run the tested
@@ -63,7 +63,7 @@ If a secret reaches any commit, in this order:
 
 Roll back immediately (then investigate) when:
 
-- a merged change breaks L1/L2 on the integration branch and a fix is not
+- a merged change breaks L1/L2 on `main` and a fix is not
   ready within the same working session;
 - a secret is committed (follow the incident procedure above);
 - data corruption or silently wrong state is detected;

@@ -65,3 +65,11 @@ check is consistency not authenticity (verdicts in HTML comments/fences or a
 record outside `docs/reviews/` were accepted); B-24 P0 closable outside the
 dedicated repo (local tag / look-alike remote). Both fixed in 368429f;
 the independent validation agent confirmed the probes now fail.
+
+## Post-migration review (dedicated repository)
+
+**Review of 254e400 — APPROVE_WITH_NOTES.** Checker PASS, 68 tests OK;
+legitimate closure sequence verified to pass on a local annotated tag (no
+deadlock). Notes: B-25 (TD-004 repayable by YAML edit), B-26 (break-glass),
+B-27 (up-to-date requirement × parallel PRs), `cancel-in-progress` on `main`,
+B-28 (run 4 test claim), B-29 ("integration branch" stale), stale-doc list.

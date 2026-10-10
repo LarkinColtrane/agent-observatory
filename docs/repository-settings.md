@@ -5,8 +5,9 @@ Status: **partially applied** (TD-004). Last verified: 2026-10-10.
 The agent cannot change repository settings: the session proxy rejects
 settings writes (HTTP 403, "Repository settings writes are not permitted
 through this proxy") and the Claude GitHub App lacks the *Administration*
-permission needed for branch protection or rulesets (HTTP 403, "Resource not
-accessible by integration"). The owner applies the items marked **Owner**.
+permission needed to read or write branch protection or rulesets (HTTP 403,
+"Resource not accessible by integration"). The owner applies the items marked
+**Owner**; the agent verifies them (see "Verification").
 
 ## Current state (read via API, 2026-10-10)
 
@@ -19,7 +20,7 @@ accessible by integration"). The owner applies the items marked **Owner**.
 | Projects | enabled → **Owner: disable** (unused) | |
 | Merge methods | merge, squash, rebase all enabled → **Owner: squash only** | |
 | Auto-delete head branches | off → **Owner: enable** | |
-| Branch protection / rulesets on `main` | none → **Owner: configure (below)** | |
+| Branch protection / rulesets | none (`branches/main` reports `protected: false`) → **Owner: ruleset below** | |
 
 ## Policy decisions
 
@@ -29,35 +30,65 @@ accessible by integration"). The owner applies the items marked **Owner**.
   unreviewed side channels.
 - **Issues on.** Used for the task board.
 
-## Branch protection for `main` (Owner)
+## Ruleset for `main` (Owner)
 
-Settings → Branches → Add branch protection rule (or Settings → Rules →
-Rulesets → New branch ruleset targeting `main`):
+Use a **ruleset** (Settings → Rules → Rulesets → New branch ruleset) rather
+than classic branch protection, so the same rules can also target the probe
+branch used for verification.
+
+- **Name:** `main-protection` · **Enforcement:** Active
+- **Bypass list:** **empty** (no one bypasses — the agent pushes as the
+  owner, so any owner bypass is an agent bypass)
+- **Target branches:** `main` **and** `protection-probe`
 
 | Rule | Value | Why |
 |---|---|---|
-| Require a pull request before merging | **on** | All future work arrives as reviewed PRs |
-| Required approvals | **0 for now** (see below) | Prevents lock-out on a single-human account |
-| Dismiss stale approvals on new commits | **on** | Approvals apply to the reviewed diff only |
-| Require conversation resolution | **on** | No unresolved review threads at merge |
-| Require status checks to pass | **on**, require **`governance`** | This check exists and passes on `main` |
-| Require branches to be up to date | **on** | Checks run against current `main` |
-| Allow force pushes | **off** | Rollback policy: never rewrite published history |
-| Allow deletions | **off** | |
-| Do not allow bypassing / include administrators | **on** | Rules apply to everyone, including agents pushing as the owner |
+| Restrict deletions | **on** | |
+| Block force pushes | **on** | Rollback policy: never rewrite published history |
+| Require a pull request before merging | **on** | All work arrives as PRs |
+| — Required approvals | **0 for now** (see below) | Prevents lock-out on a single-human account |
+| — Dismiss stale approvals on new commits | **on** | |
+| — Require conversation resolution | **on** | |
+| — Allowed merge methods | **squash** | |
+| Require status checks to pass | **on**, check **`governance`** | This check exists and passes on `main` |
+| — Require branches to be up to date | **on** | Checks run against current `main` |
+
+If GitHub says rulesets/branch protection need a paid plan for private
+repositories, report that back: TD-004 then becomes an owner decision
+(upgrade, or accept the risk) and Phase 1 stays blocked until it is made.
 
 **Why 0 required approvals today:** the agent pushes and opens PRs as the
 owner's GitHub identity, and GitHub does not let an author approve their own
-PR. Requiring 1 approval would make every PR unmergeable unless rules are
-bypassed. Independent review is still mandatory by governance (reviewer
-verdicts recorded under `docs/reviews/`, enforced by the checker); its
-authenticity gap is TD-007. Raise required approvals to 1 and enable
-"Require review from Code Owners" as soon as a second human (or a separate
-reviewer identity) exists.
+PR. Requiring 1 approval would make every PR unmergeable without a bypass,
+and a bypass would also be available to the agent. Independent review stays
+mandatory by governance (verdicts under `docs/reviews/`, enforced by the
+checker). Known limits (TD-007): verdict lines are not authenticated, and the
+required `governance` check runs the PR's *own* copy of the checker and
+workflow, so a PR that weakens the checker could pass itself. Raise required
+approvals to 1 and require Code Owner review as soon as a second human or a
+separate reviewer identity exists.
 
-**Lock-out check:** with these rules the owner can still merge a PR whose
-`governance` check passes. Direct pushes to `main` (including the agent's)
-are rejected, which is the intended end state.
+## Other settings (Owner)
+
+| Setting | Value | Where |
+|---|---|---|
+| Workflow permissions | **Read repository contents** (default `GITHUB_TOKEN` read-only) | Settings → Actions → General |
+| Allowed actions | **Allow GitHub-created actions only**, or "selected": `actions/checkout`, `actions/setup-python` (the only ones used) | Settings → Actions → General |
+| Dependabot alerts | **on** | Settings → Code security |
+| Secret scanning / push protection | on **if offered** for this private repo on your plan (otherwise gitleaks in pre-commit and CI covers it) | Settings → Code security |
+
+## Break-glass (review B-26)
+
+The required `governance` check downloads pinned tooling (PyPI packages, the
+gitleaks release, pinned actions). If an upstream outage makes it fail for
+reasons unrelated to the change, every PR is blocked, including the fix. Then
+the owner, and only the owner:
+
+1. records the outage (date, failing step, upstream cause) in the PR;
+2. temporarily sets the ruleset's enforcement to **Disabled**, merges the one
+   PR, and immediately sets it back to **Active**;
+3. the agent re-verifies the ruleset (below) and notes the event in the next
+   gate report.
 
 ## Add when Phase 1 CI exists
 
@@ -67,17 +98,25 @@ blocks every merge). Expected Phase 1 checks: backend lint/format/typecheck,
 backend tests, frontend lint/typecheck/tests, Docker build, migrations
 (up/down, single head), dependency audit.
 
-## Verification after the owner applies settings
+## Verification (agent)
 
-The agent can read, but not write, protection state:
-`GET /repos/LarkinColtrane/agent-observatory/branches/main` returns
-`protected` and `protection.required_status_checks` (readable without the
-Administration permission; the detailed protection and rules endpoints return
-403 to the agent). Merge settings and visibility are read from
-`GET /repos/LarkinColtrane/agent-observatory`. TD-004 is repaid only when
-`protected: true`, `governance` is listed as a required check, and the merge
-settings match this page. A test push to `main` is **not** used for
-verification: if protection were missing it would modify `main`.
+The readable API (`GET /repos/LarkinColtrane/agent-observatory/branches/main`)
+shows only `protected` and the required status checks — not bypass actors,
+force-push, or deletion rules (review PM-02). So the agent verifies on the
+**probe branch**, which the same ruleset targets:
+
+1. The CI step "Repository protection matches TD-004" (`scripts/check-repo-protection.py`, run with the workflow token) reports `main` protected with `governance` required. It reads both `branches/main` and `rules/branches/main`, since ruleset-required checks may appear only in the latter (review N-B); this session's own token gets 403 on the rules endpoint.
+2. `branches/protection-probe` reports `protected: true`.
+3. A direct push of a new commit to `protection-probe` is **rejected**.
+4. A force-push to `protection-probe` is **rejected**.
+5. Deleting `protection-probe` is **rejected**.
+6. Merge settings and visibility match this page (`GET /repos/...`).
+
+Rejections in 3–5 prove that the rules apply to the identity the agent pushes
+as (no bypass). `main` itself is never used for a test push. TD-004 is repaid
+only when all six hold. CI also re-checks 1 on every run once TD-004 is
+repaid (`scripts/check-repo-protection.py`), so a later removal of protection
+fails the build.
 
 Last read (2026-10-10, before owner action): `protected: false`, no required
 checks.

@@ -130,6 +130,8 @@ SECRET_PATTERNS = {
     "generic-secret-assignment": re.compile(
         rb"(?i)\b[a-z0-9_]*(?:password|passwd|secret|token|api[_-]?key|access[_-]?key)\b\s*[:=]\s*['\"]?"
         rb"(?![<$({\[]|example|placeholder|changeme|redacted|xxx|\*\*\*|none|null|true|false)"
+        # Not a literal: a call/attribute expression such as os.environ.get("X").
+        rb"(?![A-Za-z_][\w.]*\()"
         rb"[A-Za-z0-9/+_.=!@#%^&*-]{8,}"
     ),
 }

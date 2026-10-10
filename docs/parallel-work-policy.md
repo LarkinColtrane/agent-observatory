@@ -70,8 +70,14 @@ coordinator in task contracts so parallel tasks never mint the same ID.
 ## Branching and integration
 
 - One branch per task: `ao/<task_id>-<slug>`.
-- Implementers never merge; the integration agent merges one task at a time,
-  re-running L1/L2 after each.
+- All work reaches `main` as a pull request, squash-merged. Implementers
+  never merge; the integration agent merges **one PR at a time**, re-running
+  L1/L2 on `main` after each. The handoff's `commit` is the PR head SHA; the
+  integrator records the squash SHA on `main`.
+- `main` requires branches to be up to date, and no merge queue is available
+  for a user-owned repository, so each merge makes the other open PRs stale.
+  The integrator updates and re-runs only the next PR in the queue, and phase
+  plans budget CI time accordingly (review B-27).
 - **Migrations (Alembic):** ordering is the `down_revision` chain, not file
   numbers. Each task sets `down_revision` to the head named in its contract;
   at merge the integrator rebases `down_revision` onto the current head if it
