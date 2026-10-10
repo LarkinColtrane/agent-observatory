@@ -18,6 +18,17 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from typing import Any, Callable
+
+import yaml
+
+class _IndentedDumper(yaml.SafeDumper):
+    """Indent sequences like the hand-written state file, so text-based
+    fixture edits keep matching after a YAML round-trip."""
+
+    def increase_indent(self, flow: bool = False, indentless: bool = False) -> None:
+        super().increase_indent(flow, False)
+
 
 REPO = Path(__file__).resolve().parents[2]
 REAL_REMOTE = "https://github.com/LarkinColtrane/agent-observatory.git"
@@ -86,6 +97,22 @@ class CheckerCase(unittest.TestCase):
         subprocess.run(["git", "-C", str(self.tmp), "remote", "remove", "origin"], env=GIT_ENV, capture_output=True)
         if dedicated:
             self.git("remote", "add", "origin", REAL_REMOTE)
+
+    def update_state(self, fn: Callable[[dict[str, Any]], None]) -> None:
+        """Edit docs/governance-state.yaml structurally (not by string match),
+        so fixtures do not depend on how the live file is formatted."""
+        st = self.path("docs/governance-state.yaml")
+        data = yaml.safe_load(st.read_text())
+        fn(data)
+        st.write_text(yaml.dump(data, Dumper=_IndentedDumper, sort_keys=False, default_flow_style=False))
+
+    def set_phase(self, pid: str, **fields: Any) -> None:
+        def apply(d: dict[str, Any]) -> None:
+            next(p for p in d["phases"] if p["id"] == pid).update(fields)
+        self.update_state(apply)
+
+    def set_claims(self, claims: list[dict[str, Any]]) -> None:
+        self.update_state(lambda d: d.__setitem__("claims", claims))
 
     def edit(self, rel: str, old: str, new: str, count: int = 1) -> None:
         p = self.path(rel)
@@ -195,14 +222,15 @@ class TestGovernanceState(CheckerCase):
 
     def test_phase_cannot_start_before_predecessor_closed(self) -> None:
         self.edit(self.STATE, "{id: P2, name: Universal agent event protocol, status: not_started", "{id: P2, name: Universal agent event protocol, status: in_progress")
+        self.set_phase("P1", status="not_started")
         self.assertFails(r"phase P2: is 'in_progress' but P1 is not closed")
-        self.edit(self.STATE, "{id: P1, name: Engineering foundation, status: not_started", "{id: P1, name: Engineering foundation, status: in_progress")
+        self.set_phase("P1", status="in_progress")
         self.assertFails(r"more than one phase active")
 
     def test_p1_cannot_start_outside_dedicated_repo(self) -> None:
         self.set_dedicated(False)
         self.make_p1_blocker()
-        self.edit(self.STATE, "{id: P1, name: Engineering foundation, status: not_started", "{id: P1, name: Engineering foundation, status: in_progress")
+        self.set_phase("P1", status="in_progress")
         self.assertFails(r"cannot start while the project is not in its dedicated repository", r"while blocked by open debt TD-006")
 
     def test_closed_with_unrun_gate_item_rejected(self) -> None:
@@ -252,9 +280,7 @@ class TestGovernanceState(CheckerCase):
         block = text[start:end]
         self.assertIn("    status: open\n", block, f"fixture drift: {debt_id} not open")
         reg.write_text(text[:start] + re.sub(r"(?m)^    blocks: \[.*\]$", "    blocks: [P1]", block, count=1) + text[end:])
-        st = self.path(self.STATE)
-        st.write_text(re.sub(r"(\{id: P1, name: Engineering foundation, status: \w+, blocked_by: )\[[^\]]*\]",
-                             rf"\g<1>[{debt_id if recorded_in_state else ''}]", st.read_text(), count=1))
+        self.set_phase("P1", blocked_by=[debt_id] if recorded_in_state else [])
 
     def reopen_p0(self) -> None:
         """Return P0 to gate_review (tag removed, item 12 not_run), so closure
@@ -412,7 +438,7 @@ class TestGovernanceState(CheckerCase):
 
     def test_blocked_by_repaid_or_unknown_debt(self) -> None:
         self.make_p1_blocker()
-        self.edit(self.STATE, "blocked_by: [TD-006]}", "blocked_by: [TD-006, TD-003, TD-999]}")
+        self.set_phase("P1", blocked_by=["TD-006", "TD-003", "TD-999"])
         self.assertFails(r"blocked_by 'TD-003' is not open debt", r"unknown debt 'TD-999'")
 
     def test_event_protocol_cannot_be_drafted_before_p2(self) -> None:
@@ -477,23 +503,23 @@ class TestGovernanceState(CheckerCase):
         self.assertFails(r"contract event-protocol: not_before_phase must be P2")
 
     def test_overlapping_claims(self) -> None:
-        self.edit(self.STATE, "claims: []", "claims:\n  - {task: AO-P1-001, owner: impl-1, paths: [backend/]}\n  - {task: AO-P1-002, owner: impl-2, paths: [backend/src/ingest]}")
+        self.set_claims([{"task": "AO-P1-001", "owner": "impl-1", "paths": ["backend/"]},
+                         {"task": "AO-P1-002", "owner": "impl-2", "paths": ["backend/src/ingest"]}])
         self.assertFails(r"claims: 'backend/src/ingest' \(AO-P1-002\) overlaps 'backend' \(AO-P1-001\)")
 
     def test_claim_overlap_is_case_insensitive(self) -> None:
-        self.edit(self.STATE, "claims: []", "claims:\n"
-                  "  - {task: AO-P1-001, owner: impl-1, paths: [Core/ingest/]}\n"
-                  "  - {task: AO-P1-002, owner: impl-2, paths: [./core/ingest]}")
+        self.set_claims([{"task": "AO-P1-001", "owner": "impl-1", "paths": ["Core/ingest/"]},
+                         {"task": "AO-P1-002", "owner": "impl-2", "paths": ["./core/ingest"]}])
         self.assertFails(r"'\./core/ingest' \(AO-P1-002\) overlaps 'core/ingest' \(AO-P1-001\)")
 
     def test_claim_glob_dotslash_duplicate_and_phase(self) -> None:
         # Regression for B-18 / N-05.
-        self.edit(self.STATE, "claims: []", "claims:\n"
-                  "  - {task: AO-P1-001, owner: impl-1, paths: ['backend/**']}\n"
-                  "  - {task: AO-P1-002, owner: impl-2, paths: [frontend]}\n"
-                  "  - {task: AO-P1-003, owner: impl-3, paths: [./frontend/app/]}\n"
-                  "  - {task: AO-P1-003, owner: impl-4, paths: [docs/x]}\n"
-                  "  - {task: AO-P1-004, owner: impl-5, paths: [../outside]}")
+        self.set_phase("P1", status="not_started")
+        self.set_claims([{"task": "AO-P1-001", "owner": "impl-1", "paths": ["backend/**"]},
+                         {"task": "AO-P1-002", "owner": "impl-2", "paths": ["frontend"]},
+                         {"task": "AO-P1-003", "owner": "impl-3", "paths": ["./frontend/app/"]},
+                         {"task": "AO-P1-003", "owner": "impl-4", "paths": ["docs/x"]},
+                         {"task": "AO-P1-004", "owner": "impl-5", "paths": ["../outside"]}])
         self.assertFails(
             r"'backend/\*\*' uses glob characters",
             r"'./frontend/app/' \(AO-P1-003\) overlaps 'frontend' \(AO-P1-002\)",

@@ -1,0 +1,40 @@
+# Reviewed release-tag automation (ADR-0005 §7). The agent session's git proxy
+# refuses tag pushes, so annotated tags are created here from the committed
+# list `pending_tags` in docs/governance-state.yaml.
+#
+# Safety properties:
+# - runs only for pushes to main (no inputs, no workflow_dispatch);
+# - creates a tag only if its target commit is an ancestor of main;
+# - never moves, re-creates or deletes a tag: an existing tag pointing at the
+#   requested commit is accepted as already done, at any other commit fails;
+# - tag names must match ^(phase-P[0-9]+|contract-[a-z0-9-]+)-v[0-9]+\.[0-9]+\.[0-9]+$;
+# - no secrets; GITHUB_TOKEN with contents: write only.
+name: release-tags
+
+on:
+  push:
+    branches: [main]
+    paths: [docs/governance-state.yaml]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-tags
+  cancel-in-progress: false
+
+jobs:
+  tags:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5.4.0
+        with:
+          python-version: "3.12"
+      - name: Install PyYAML (hash-pinned)
+        run: python -m pip install --require-hashes -r requirements-governance.txt
+      - name: Create pending annotated tags
+        run: python -I scripts/release-tags.py
