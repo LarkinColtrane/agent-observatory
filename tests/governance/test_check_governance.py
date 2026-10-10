@@ -201,8 +201,9 @@ class TestGovernanceState(CheckerCase):
 
     def test_p1_cannot_start_outside_dedicated_repo(self) -> None:
         self.set_dedicated(False)
+        self.make_p1_blocker()
         self.edit(self.STATE, "{id: P1, name: Engineering foundation, status: not_started", "{id: P1, name: Engineering foundation, status: in_progress")
-        self.assertFails(r"cannot start while the project is not in its dedicated repository", r"while blocked by open debt TD-004")
+        self.assertFails(r"cannot start while the project is not in its dedicated repository", r"while blocked by open debt TD-006")
 
     def test_closed_with_unrun_gate_item_rejected(self) -> None:
         # Regression for review findings B-01 / A-01 ("closed with exception").
@@ -239,6 +240,21 @@ class TestGovernanceState(CheckerCase):
                          report.read_text(), count=1, flags=re.M)
         self.assertEqual(n, 1, f"fixture drift: gate row {item}")
         report.write_text(new)
+
+    def make_p1_blocker(self, debt_id: str = "TD-006", recorded_in_state: bool = True) -> None:
+        """Make an open debt item block P1 inside the fixture only, so tests do
+        not depend on whether the real register currently blocks P1."""
+        reg = self.path("docs/technical-debt.yaml")
+        text = reg.read_text()
+        start = text.index(f"  - id: {debt_id}\n")
+        end = text.find("\n  - id: ", start + 1)
+        end = len(text) if end == -1 else end
+        block = text[start:end]
+        self.assertIn("    status: open\n", block, f"fixture drift: {debt_id} not open")
+        reg.write_text(text[:start] + re.sub(r"(?m)^    blocks: \[.*\]$", "    blocks: [P1]", block, count=1) + text[end:])
+        st = self.path(self.STATE)
+        st.write_text(re.sub(r"(\{id: P1, name: Engineering foundation, status: \w+, blocked_by: )\[[^\]]*\]",
+                             rf"\g<1>[{debt_id if recorded_in_state else ''}]", st.read_text(), count=1))
 
     def reopen_p0(self) -> None:
         """Return P0 to gate_review (tag removed, item 12 not_run), so closure
@@ -391,11 +407,12 @@ class TestGovernanceState(CheckerCase):
         self.assertFails(r"gate items missing: \[10\]")
 
     def test_open_blocking_debt_missing_from_blocked_by(self) -> None:
-        self.edit(self.STATE, "blocked_by: [TD-004]}", "blocked_by: []}")
-        self.assertFails(r"phase P1: open debt TD-004 blocks it but is not in blocked_by")
+        self.make_p1_blocker(recorded_in_state=False)
+        self.assertFails(r"phase P1: open debt TD-006 blocks it but is not in blocked_by")
 
     def test_blocked_by_repaid_or_unknown_debt(self) -> None:
-        self.edit(self.STATE, "blocked_by: [TD-004]}", "blocked_by: [TD-004, TD-003, TD-999]}")
+        self.make_p1_blocker()
+        self.edit(self.STATE, "blocked_by: [TD-006]}", "blocked_by: [TD-006, TD-003, TD-999]}")
         self.assertFails(r"blocked_by 'TD-003' is not open debt", r"unknown debt 'TD-999'")
 
     def test_event_protocol_cannot_be_drafted_before_p2(self) -> None:
