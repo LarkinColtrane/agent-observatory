@@ -1,6 +1,6 @@
 # ADR-0005: Phase 1 engineering-foundation contract
 
-- Status: proposed
+- Status: accepted — frozen at tag `contract-phase1-foundation-v1.0.0`
 - Date: 2026-10-10
 - Deciders: Coordinator (proposed); Reviewer A and Reviewer B (sign-off)
 - Components: C11, C12, C13 (seam only), C4/C5 (seam only)
@@ -106,7 +106,10 @@ Implemented by workers against these signatures:
 - `observatory.db` (W3): `create_engine(settings) -> AsyncEngine` (psycopg 3,
   `postgresql+psycopg://`, `connect_timeout=1`); `database_check(engine) ->
   HealthCheck` (`SELECT 1`). Alembic uses `migration_database_url` (DDL
-  role); the application uses `database_url` (DML-only role). No product
+  role); the application uses `database_url` (DML-only role). All code,
+  including Alembic `env.py`, obtains settings via `get_settings()`; direct
+  `Settings()` construction outside `config.py` is banned by Ruff (TID251),
+  because only `get_settings()` guarantees sanitized errors. No product
   tables in Phase 1; baseline revision `0001_baseline` is empty; exactly one
   head.
 - `observatory.cache` (W3): `create_redis(settings) -> redis.asyncio.Redis`
@@ -172,4 +175,4 @@ owner setting (TD-016).
 
 ## Review
 
-- Reviewer A / Reviewer B: see `docs/reviews/phase-1-contract-review.md`.
+- Reviewer A: APPROVE_WITH_NOTES · Reviewer B: APPROVE_WITH_NOTES (after two REQUEST_CHANGES rounds) — `docs/reviews/phase-1-contract-review.md`.

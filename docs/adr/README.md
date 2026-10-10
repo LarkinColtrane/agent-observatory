@@ -10,5 +10,5 @@ must be listed here (the governance checker enforces both directions).
 | [0001](0001-adopt-development-operating-system.md) | Adopt the development operating system before product work | accepted (P1 clause superseded by 0003) |
 | [0002](0002-phase-1-technology-stack.md) | Phase 1 technology stack — modular monolith | accepted |
 | [0003](0003-phase-order-and-event-protocol-deferral.md) | Phase order and deferral of the universal event protocol | accepted |
-| [0005](0005-phase-1-foundation-contract.md) | Phase 1 engineering-foundation contract | accepted (frozen on tag `contract-phase1-foundation-v1.0.0`) |
+| [0005](0005-phase-1-foundation-contract.md) | Phase 1 engineering-foundation contract | accepted (frozen at tag `contract-phase1-foundation-v1.0.0`) |
 | [0004](0004-dedicated-private-repository.md) | Dedicated private repository | accepted (implemented; protection pending, TD-004) |

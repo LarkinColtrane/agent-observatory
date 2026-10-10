@@ -256,6 +256,8 @@ class TestGovernanceState(CheckerCase):
         st = self.path(self.STATE)
         st.write_text(st.read_text().replace("    status: approved\n    reviewed_by: [reviewer-a, reviewer-b]",
                                              "    status: in_review\n    reviewed_by: []"))
+        # Pending contract tags are invalid without approval; the pre-verdict state has none.
+        self.update_state(lambda d: d.__setitem__("pending_tags", []))
         self.set_gate_row(10, "no", "not_run")
 
     def record_verdicts(self, a: str, b: str) -> None:
@@ -502,28 +504,35 @@ class TestGovernanceState(CheckerCase):
         self.edit(self.STATE, "    status: not_drafted\n    not_before_phase: P2", "    status: draft")
         self.assertFails(r"contract event-protocol: not_before_phase must be P2")
 
-    def approve_p1_contract(self, verdicts: bool = True) -> None:
+    def set_p1_contract(self, status: str, verdicts: bool) -> None:
+        """Set the Phase 1 contract's review state explicitly (independent of the live repo)."""
         def apply(d: dict[str, Any]) -> None:
             c = next(c for c in d["contracts"] if c["id"] == "phase1-foundation")
-            c.update(status="approved", reviewed_by=["reviewer-a", "reviewer-b"])
+            approved = status in {"approved", "frozen"}
+            c.update(status=status, reviewed_by=["reviewer-a", "reviewer-b"] if approved else [])
         self.update_state(apply)
-        if verdicts:
-            rec = self.path("docs/reviews/phase-1-contract-review.md")
-            rec.write_text(rec.read_text().split("<!-- final-verdicts -->")[0] + "<!-- final-verdicts -->\n"
-                           "- **Reviewer A final outcome:** APPROVE\n- **Reviewer B final outcome:** APPROVE\n")
+        rec = self.path("docs/reviews/phase-1-contract-review.md")
+        head = rec.read_text().split("<!-- final-verdicts -->")[0] + "<!-- final-verdicts -->\n"
+        rec.write_text(head + ("- **Reviewer A final outcome:** APPROVE\n- **Reviewer B final outcome:** APPROVE\n"
+                               if verdicts else ""))
+
+    def approve_p1_contract(self, verdicts: bool = True) -> None:
+        self.set_p1_contract("approved", verdicts)
 
     def set_pending(self, *entries: dict[str, Any]) -> None:
         self.update_state(lambda d: d.__setitem__("pending_tags", list(entries)))
 
     def test_pending_contract_tag_requires_approval(self) -> None:
         # Review P1A-05: no tag for a contract that is not approved by both reviewers.
+        self.set_p1_contract("in_review", verdicts=False)
         self.set_pending({"tag": "contract-phase1-foundation-v1.0.0", "commit": "self", "message": "m"})
         self.assertFails(r"contract phase1-foundation v1\.0\.0 is not approved")
 
     def test_pending_contract_tag_requires_verdicts(self) -> None:
         self.approve_p1_contract(verdicts=False)
         self.set_pending({"tag": "contract-phase1-foundation-v1.0.0", "commit": "self", "message": "m"})
-        self.assertFails(r"pending_tags\[0\] contract-phase1-foundation-v1\.0\.0: no recorded final verdict")
+        self.assertFails(r"pending_tags\[0\] contract-phase1-foundation-v1\.0\.0: no recorded final verdict",
+                         r"contract phase1-foundation: claims review but no recorded final verdict")
 
     def test_pending_contract_tag_version_must_match(self) -> None:
         self.approve_p1_contract()

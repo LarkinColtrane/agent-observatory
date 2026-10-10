@@ -36,4 +36,13 @@ All round-1 items verified resolved (P1A-05 partial pending owner tag ruleset, T
 | P1B-10 | MINOR | Kept audit entries would fail CI after a contract bump | Entries whose tag already exists are skipped by the approval rule; test + mutant |
 | P1B-11 | MINOR | A cancellation-ignoring check could hang `/readyz` | Bounded 0.1 s grace after cancel, stragglers abandoned; test with a cancellation-swallowing probe |
 
+## Round 3 (commit 8b89b79) — A: APPROVE_WITH_NOTES · B: APPROVE_WITH_NOTES
+
+All round-2 items verified resolved (A re-ran the password repro across three invalid configurations; B re-ran the comment-mention repro). Notes:
+- A: ban direct `Settings()` outside `config.py` before W3 writes Alembic `env.py` → **done**: Ruff TID251 banned-api (tests exempt), verified to flag a planted use; ADR §3 updated.
+- B (nit): a probe that truly ignores cancellation is abandoned per `/readyz` call and could accumulate → **accepted**: driver timeouts (1 s) bound real probes; no extra machinery in Phase 1.
+- P1A-05 remains owner-dependent (tag ruleset, TD-016).
+
 <!-- final-verdicts -->
+- **Reviewer A final outcome:** APPROVE_WITH_NOTES — round 3 verification of commit 8b89b79
+- **Reviewer B final outcome:** APPROVE_WITH_NOTES — round 3 verification of commit 8b89b79

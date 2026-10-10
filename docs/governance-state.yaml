@@ -94,8 +94,8 @@ contracts:
     review_record: docs/reviews/phase-1-contract-review.md
     path: docs/adr/0005-phase-1-foundation-contract.md
     version: 1.0.0
-    status: in_review
-    reviewed_by: []
+    status: approved
+    reviewed_by: [reviewer-a, reviewer-b]
     tag: null
   - id: event-protocol
     path: null
@@ -120,4 +120,7 @@ claims:
 
 # Annotated tags to be created by .github/workflows/release-tags.yml on main
 # (ADR-0005 §7). Entries stay as the audit record; existing tags are never moved.
-pending_tags: []
+pending_tags:
+  - tag: contract-phase1-foundation-v1.0.0
+    commit: self
+    message: Agent Observatory Phase 1 engineering-foundation contract (ADR-0005) v1.0.0, approved by Reviewer A and Reviewer B.

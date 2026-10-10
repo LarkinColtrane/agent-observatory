@@ -44,11 +44,16 @@ target-version = "py312"
 src = ["src", "tests"]
 
 [tool.ruff.lint]
-select = ["E", "F", "W", "I", "B", "UP", "S", "ASYNC", "RUF", "PT", "SIM", "PL"]
+select = ["E", "F", "W", "I", "B", "UP", "S", "ASYNC", "RUF", "PT", "SIM", "PL", "TID"]
 ignore = ["PLR2004"]
 
+[tool.ruff.lint.flake8-tidy-imports.banned-api]
+# Review P1A-08 note: constructing Settings directly bypasses the sanitized
+# ConfigurationError path (pydantic errors() would carry raw inputs).
+"observatory.core.config.Settings".msg = "use observatory.core.config.get_settings() (sanitized errors)"
+
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["S101", "PLR0913"]
+"tests/**" = ["S101", "PLR0913", "TID251"]
 "migrations/**" = ["S"]
 
 [tool.mypy]
