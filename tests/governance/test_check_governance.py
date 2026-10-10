@@ -69,10 +69,13 @@ class CheckerCase(unittest.TestCase):
         if re.search(r"^\s*dedicated:\s*true", (self.tmp / "docs/governance-state.yaml").read_text(), re.M):
             self.git("remote", "add", "origin", REAL_REMOTE)
         self.commit("baseline")
-        # Mirror the real repository's recorded P0 gate tag (annotated) when P0 is closed.
-        m = re.search(r"^\s*gate_tag:\s*(phase-P0-v[\d.]+)", (self.tmp / "docs/governance-state.yaml").read_text(), re.M)
-        if m:
-            self.git("tag", "-a", m.group(1), "-m", "mirror of the real gate tag")
+        # Mirror every annotated tag the real state records (phase gate tags and
+        # frozen contract tags), so fixtures match the real repository.
+        recorded = yaml.safe_load((self.tmp / "docs/governance-state.yaml").read_text())
+        tags = [p.get("gate_tag") for p in recorded.get("phases", [])]
+        tags += [c.get("tag") for c in recorded.get("contracts", []) if c.get("status") == "frozen"]
+        for tag in filter(None, tags):
+            self.git("tag", "-a", tag, "-m", "mirror of the real tag")
 
     def tearDown(self) -> None:
         shutil.rmtree(self.tmp, ignore_errors=True)
@@ -504,13 +507,21 @@ class TestGovernanceState(CheckerCase):
         self.edit(self.STATE, "    status: not_drafted\n    not_before_phase: P2", "    status: draft")
         self.assertFails(r"contract event-protocol: not_before_phase must be P2")
 
+    def drop_tag(self, tag: str) -> None:
+        """Model the state before the release-tags workflow created `tag`."""
+        subprocess.run(["git", "-C", str(self.tmp), "tag", "-d", tag], env=GIT_ENV, capture_output=True)
+
     def set_p1_contract(self, status: str, verdicts: bool) -> None:
         """Set the Phase 1 contract's review state explicitly (independent of the live repo)."""
         def apply(d: dict[str, Any]) -> None:
             c = next(c for c in d["contracts"] if c["id"] == "phase1-foundation")
             approved = status in {"approved", "frozen"}
             c.update(status=status, reviewed_by=["reviewer-a", "reviewer-b"] if approved else [])
+            if status != "frozen":
+                c["tag"] = None
         self.update_state(apply)
+        if status != "frozen":
+            self.drop_tag("contract-phase1-foundation-v1.0.0")
         rec = self.path("docs/reviews/phase-1-contract-review.md")
         head = rec.read_text().split("<!-- final-verdicts -->")[0] + "<!-- final-verdicts -->\n"
         rec.write_text(head + ("- **Reviewer A final outcome:** APPROVE\n- **Reviewer B final outcome:** APPROVE\n"
@@ -552,6 +563,7 @@ class TestGovernanceState(CheckerCase):
     def test_existing_tag_entry_is_an_audit_record(self) -> None:
         # Review P1B-10: once created, a kept entry must not fail CI when the
         # contract later changes (e.g. back to in_review for a v2 draft).
+        self.set_p1_contract("in_review", verdicts=False)  # also removes the mirrored tag
         self.set_pending({"tag": "contract-phase1-foundation-v1.0.0", "commit": "self", "message": "m"})
         self.commit("entry")
         self.git("tag", "-a", "contract-phase1-foundation-v1.0.0", "-m", "m")

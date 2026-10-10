@@ -94,9 +94,9 @@ contracts:
     review_record: docs/reviews/phase-1-contract-review.md
     path: docs/adr/0005-phase-1-foundation-contract.md
     version: 1.0.0
-    status: approved
+    status: frozen
     reviewed_by: [reviewer-a, reviewer-b]
-    tag: null
+    tag: contract-phase1-foundation-v1.0.0
   - id: event-protocol
     path: null
     version: null
@@ -116,7 +116,11 @@ contracts:
 # Active path claims (coordinator records at assignment, releases at integration).
 # Each: {task: AO-P<n>-<seq>, owner: <agent>, paths: [<path prefix>, ...]}
 claims:
-  - {task: AO-P1-001, owner: coordinator, paths: [docs/adr/0005-phase-1-foundation-contract.md, docs/phases/P1-plan.md, backend/pyproject.toml, backend/uv.lock, backend/src/observatory/__init__.py, backend/src/observatory/main.py, backend/src/observatory/core/config.py, backend/src/observatory/core/health.py, backend/tests/unit/test_config.py, backend/tests/unit/test_health.py, .github/workflows/release-tags.yml, scripts/release-tags.py, tests/governance/test_release_tags.py]}
+  # AO-P1-001 released on merge of PR #3 (a8ea522).
+  - {task: AO-P1-002, owner: w1-backend-core, paths: [backend/src/observatory/core/logging.py, backend/src/observatory/core/errors.py, backend/src/observatory/api, backend/tests/unit]}
+  - {task: AO-P1-003, owner: w2-frontend, paths: [frontend]}
+  - {task: AO-P1-004, owner: w3-data-containers, paths: [backend/src/observatory/db, backend/src/observatory/cache, backend/migrations, backend/alembic.ini, backend/tests/integration, backend/Dockerfile, backend/.dockerignore, compose.yaml, compose.env.example, deploy/postgres]}
+  - {task: AO-P1-005, owner: w4-governance-tooling, paths: [scripts/check-artifacts.py, tests/governance/test_check_artifacts.py, tests/governance/test_workflow.py, docs/phases/P1-tasks]}
 
 # Annotated tags to be created by .github/workflows/release-tags.yml on main
 # (ADR-0005 §7). Entries stay as the audit record; existing tags are never moved.
