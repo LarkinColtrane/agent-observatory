@@ -4,6 +4,16 @@
 contain prompts, tool outputs, file contents, and credentials. Treat every
 adapter as a potential source of hostile or sensitive input.
 
+## Repository
+
+- **Target state (not yet in force — TD-002, TD-004):** the project lives in a
+  dedicated **private** repository
+  ([ADR-0004](adr/0004-dedicated-private-repository.md)); branch protection on
+  `main` requires review and passing CI; CODEOWNERS covers governance paths.
+  `.github/CODEOWNERS` is committed but enforces nothing until branch
+  protection is enabled.
+- Only history that has passed a full secret scan is migrated in.
+
 ## Secrets
 
 - **Never committed.** No secrets in source, tests, fixtures, docs, ADRs,
@@ -12,18 +22,38 @@ adapter as a potential source of hostile or sensitive input.
 - **Never logged.** Loggers must redact known secret fields
   (`token`, `secret`, `password`, `api_key`, `authorization`, `cookie`,
   `private_key`, …). Exceptions must not embed credentials.
-- `.gitignore` excludes `.env*` (except `.env.example`), key files, and local
-  credential stores.
-- Pre-commit includes a secret scanner (gitleaks or equivalent) once tooling
-  is introduced; the L3 gate runs a full-history scan.
-- **If a secret leaks:** revoke/rotate it first, then remove it, then record
-  the incident in the gate report. Assume anything pushed is compromised.
+- `.gitignore` excludes env files, credential stores, key files, cloud/tool
+  configs, database dumps, local data directories, and recordings.
+- Tooling (all run without printing matched values):
+  - pre-commit: `gitleaks` + `detect-private-key` on every commit;
+  - `scripts/check-governance.py`: fast pattern scan of working tree, index,
+    and all reachable history blobs (a backstop, **not** a full scanner);
+  - `scripts/secret-scan.sh`: pinned, checksum-verified gitleaks over the full
+    history of all refs — this is the authoritative scan for L3 item 8 and
+    before any repository migration.
+- **If a secret leaks:** follow the secret-incident procedure in
+  [rollback-policy.md](rollback-policy.md): rotate → record (no value) in
+  [security-incident-log.md](security-incident-log.md) → purge → re-scan.
+
+## Test fixtures and recordings
+
+- Fixtures are **synthetic** by default. Recorded agent sessions may be used
+  only after scrubbing and Reviewer A sign-off; raw recordings are never
+  committed.
+- Recordings live under ignored paths (`recordings/`, `*.recording.*`) until
+  scrubbed. Fixture directories are included in all secret scans.
 
 ## Untrusted input (adapters)
 
-- All adapter payloads are validated against the universal event schema
-  before entering the core; invalid events are quarantined, not dropped
-  silently and not partially ingested.
+- Adapters **authenticate** on ingest with per-adapter credentials; ingest is
+  default-deny. Each event records its provenance (adapter identity and
+  version) so spoofed or fabricated events are attributable and rejectable.
+- All adapter payloads are validated against the event protocol schema before
+  entering the core.
+- Invalid events go to **quarantine, which fails closed**: content-bearing
+  fields are dropped or replaced with a hash before anything is persisted;
+  quarantine has short retention and restricted access. A payload that fails
+  validation is never stored raw.
 - Enforce size limits, depth limits, and rate limits per adapter.
 - No dynamic code execution or unsafe deserialization of adapter data.
 - Agent-supplied text rendered in dashboards / virtual office is escaped
@@ -31,28 +61,33 @@ adapter as a potential source of hostile or sensitive input.
 
 ## Sensitive data in events
 
-- Classify event fields: `metadata` (safe), `content` (may be sensitive),
-  `credential` (never stored).
-- Redaction runs at ingestion, before persistence, with a configurable policy.
-- Store the minimum needed for observability; retention is configurable.
+*Provisional — the field classification is defined by the Phase 2 event
+protocol contract.* The requirement it must satisfy now: sensitive content is
+distinguishable from metadata, credentials are never stored, and redaction runs
+at ingestion **before** persistence (including quarantine), under a
+configurable policy. Store the minimum needed; retention is configurable.
 
 ## Access
 
 - Least privilege for every credential an adapter uses (read-only where
   possible).
-- Every API/UI endpoint is authenticated; authorization checked per
-  workspace/tenant.
+- Every API/UI endpoint, including WebSocket/SSE streams, is authenticated;
+  authorization checked per workspace/tenant.
 - Audit log for configuration and access-control changes.
 
 ## Dependencies & supply chain
 
-- Pin versions with a lockfile; review new dependencies (security reviewer).
-- Dependency audit at L3; no unaccepted high/critical vulnerabilities.
-- CI uses pinned action/tool versions; no untrusted scripts piped to shell.
+- Pin versions with a lockfile; review new dependencies (Reviewer A).
+- CI actions and pre-commit hooks pinned to commit SHAs (tags are mutable);
+  Python tooling installed with `--require-hashes`; downloaded binaries are
+  checksum-verified.
+- Dependency audit and SAST at L3 once dependencies exist; no unaccepted
+  high/critical vulnerabilities.
+- No untrusted scripts piped to a shell.
 
 ## Agents working on this repo
 
 - Agents never print environment variables, tokens, or credential files.
-- Agents never paste secrets into handoffs, reviews, or issues.
+- Agents never paste secrets into handoffs, reviews, issues, or incident logs.
 - Agents do not disable TLS verification or security checks to make a task
   pass; that requires an ADR.

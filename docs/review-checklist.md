@@ -4,7 +4,8 @@
 
 | Change | Independent review | Specialist review |
 |---|---|---|
-| Docs typo / formatting only | optional | — |
+| Typo/formatting in non-governance prose only | optional | — |
+| Any governance file (`docs/**` contracts, policies, registers, ADRs, `governance-state.yaml`, governance tooling) | **required** | **Reviewer A or B** as relevant; **both** for the operating contract and anything the coordinator authored |
 | Any code, config, schema, CI, or dependency change | **required** | if triggered below |
 | Touches auth, secrets, input parsing from adapters, network, file I/O, dependency additions | required | **Security** |
 | Touches event storage, migrations, normalization, dedup, ordering, state derivation | required | **Data integrity** |
@@ -12,20 +13,28 @@
 | Adds/changes a shared contract, cross-component interface, new abstraction, new runtime dependency | required | **Architecture** |
 
 Reviewer A covers **security + data integrity**; Reviewer B covers
-**concurrency + architecture**. A reviewer never reviews their own work. If
-the only qualified reviewer authored the change, the coordinator assigns
-another agent and records it.
+**concurrency + architecture**. A reviewer never reviews their own work, and
+no agent holds two roles on the same change. If the only qualified reviewer
+authored the change, the coordinator assigns another agent and records it.
+In the dedicated repository, CODEOWNERS and branch protection enforce
+required review on governance paths.
 
 ## Review outcomes
 
-- **Approve** — no blocking findings.
-- **Approve with nits** — non-blocking findings; author may fix in this task
-  or record as debt.
-- **Request changes** — at least one blocking finding. Each finding states
-  the concrete failing scenario (input/state → wrong result).
-- **Escalate** — design question that needs an ADR or the coordinator.
+Every review ends with exactly one outcome:
 
-Findings without a concrete scenario are advisory, not blocking.
+- **APPROVE** — no findings that need action.
+- **APPROVE_WITH_NOTES** — only MINOR/NIT findings; author may fix in this
+  task or record them as debt.
+- **REQUEST_CHANGES** — at least one MAJOR finding; must be resolved and
+  re-verified by the same reviewer before merge.
+- **BLOCK** — at least one BLOCKING finding (unsafe to proceed, or needs an
+  ADR / coordinator decision). Work stops until resolved and re-verified.
+
+Finding severities: BLOCKING, MAJOR, MINOR, NIT. A BLOCKING or MAJOR finding
+must state a concrete failure mode (input/state → wrong result); without one
+it is downgraded to MINOR. Material flaws are fixed, not re-labelled as debt
+to proceed.
 
 ## General checklist (every review)
 
@@ -45,6 +54,9 @@ Findings without a concrete scenario are advisory, not blocking.
 
 ## Security specialist
 
+- [ ] Adapters authenticate on ingest; provenance recorded; default deny.
+- [ ] Test fixtures are synthetic or scrubbed and security-reviewed; no real
+      recordings committed.
 - [ ] All adapter input treated as untrusted: validated against schema, size
       limits enforced, no `eval`/deserialization of arbitrary types.
 - [ ] Secrets loaded from environment/secret store only; never logged,
@@ -57,12 +69,14 @@ Findings without a concrete scenario are advisory, not blocking.
 
 ## Data integrity specialist
 
-- [ ] Event model invariants preserved (IDs unique, timestamps normalized,
-      source + adapter version recorded).
+- [ ] Event protocol invariants preserved. *Provisional until the Phase 2
+      contract defines them;* expected to include unique IDs, normalized
+      timestamps, and source + adapter version provenance.
 - [ ] Idempotency: replaying the same event does not double-count.
 - [ ] Out-of-order and late events handled deterministically.
-- [ ] Migrations are reversible (or the irreversibility is ADR-approved) and
-      tested up/down.
+- [ ] Migrations are reversible (or the irreversibility is ADR-approved),
+      tested up/down, follow expand/contract, and `alembic heads` reports
+      exactly one head after merge.
 - [ ] No lossy transformation without recording the original or the loss.
 - [ ] Derived state can be recomputed from the event log.
 

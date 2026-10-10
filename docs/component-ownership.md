@@ -1,55 +1,66 @@
 # Component Ownership
 
-Single source of truth for who owns what and which shared contracts are
-frozen. Updated by the coordinator only. An agent may write to a path only if
-this file (or its active task contract) assigns it.
+Who owns what, which shared contracts are frozen, and which paths are claimed.
+The **machine-readable source of truth** is
+[`governance-state.yaml`](governance-state.yaml) (`components`, `contracts`,
+`claims`), maintained by the coordinator only and validated by
+`scripts/check-governance.py`. This page explains it.
 
-## Planned components
+## Planned components (illustrative — not a layout)
 
-These are **planned** boundaries for the product; none exist yet. Paths are
-provisional and will be confirmed by ADR when Phase 1 opens.
+These are **logical** boundaries, not directories. Per
+[ADR-0002](adr/0002-phase-1-technology-stack.md) the system is a modular
+monolith: backend modules are expected to live under
+`backend/src/observatory/<module>/` and the UI under `frontend/`, but **exact
+paths are decided by Phase 1 tasks**, not here. Nothing here gives the event
+protocol a home before Phase 2 decides its form.
 
-| ID | Component | Planned path | Responsibility | Depends on | Specialist focus |
+| ID | Component | Responsibility | Depends on | Built in phase | Specialist focus |
 |---|---|---|---|---|---|
-| C1 | Universal event model | `contracts/events/` | Canonical event schema, versioning, validation | — | Data integrity, architecture |
-| C2 | Adapter SDK | `adapters/sdk/` | Base interface every adapter implements; mapping to C1 | C1 | Architecture, security |
-| C3 | Adapters | `adapters/<system>/` | One per agent system; normalize to C1 | C1, C2 | Security |
-| C4 | Ingestion pipeline | `core/ingest/` | Receive, validate, redact, dedup, persist events | C1 | Concurrency, data integrity, security |
-| C5 | Event store | `core/store/` | Append-only storage + migrations | C1 | Data integrity |
-| C6 | State engine | `core/state/` | Derive agent/workflow state from event log | C1, C5 | Concurrency, data integrity |
-| C7 | Query API | `api/` | Read API for UIs; authN/authZ | C5, C6 | Security, architecture |
-| C8 | Dashboards & timelines | `ui/dashboards/` | Metrics, timelines | C7 | Security (XSS) |
-| C9 | Dependency graph | `ui/graph/` | Agent/workflow dependency visualization | C7 | Architecture |
-| C10 | Virtual office | `ui/office/` | Spatial visualization of agent activity | C7 | Architecture |
-| C11 | Platform & tooling | `infra/`, `.github/`, tooling configs | CI, Docker, pre-commit, dev env | — | Security |
-| C12 | Governance | `docs/` | Contracts, ADRs, registers | — | — |
+| C1 | Event protocol | Canonical event contract, versioning, validation | — | P2 | Data integrity, architecture |
+| C2 | Adapter SDK | Interface every adapter implements; mapping to C1 | C1 | P3 | Architecture, security |
+| C3 | Adapters | One per agent system; normalize to C1 | C1, C2 | P3, P9 | Security |
+| C4 | Ingestion | Authenticate, validate, redact, quarantine, dedup, persist | C1, C13 | P3–P4 | Concurrency, data integrity, security |
+| C5 | Event store | Append-only storage + migrations | C1 | P2–P4 | Data integrity |
+| C6 | State engine | Derive agent/workflow state from the event log | C1, C5 | P4 | Concurrency, data integrity |
+| C7 | Query API | Read API for UIs | C5, C6, C13 | P4–P6 | Security, architecture |
+| C8 | Operations dashboard | Dashboards, timelines | C7, C14 | P6 | Security (XSS) |
+| C9 | Control room / workflow graph | Dependency and workflow graph | C7 | P10 | Architecture |
+| C10 | 2D virtual office | Spatial visualisation of agent activity | C7, C14 | P8 | Architecture |
+| C11 | Platform & tooling | CI, Docker/Compose, pre-commit, dev env, import-boundary checks | — | P1 | Security |
+| C12 | Governance | Contracts, ADRs, registers, governance tooling | — | P0 | — |
+| C13 | Identity & access | AuthN/AuthZ for users, adapters, streams | — | P1–P5 | Security |
+| C14 | Realtime | Live streaming to clients (WebSockets or SSE — ADR in P5) | C6, C13 | P5 | Concurrency |
+| C15 | Analytics / scorecards | Aggregates, scorecards, trends | C5, C6 | P7 | Data integrity |
+| C16 | External integrations | Outbound integrations, export, notifications | C7 | P9 | Security |
 
-Dependency direction is one-way as listed. Adapters depend on the event
-model, never the reverse; UI depends on the API, never on storage.
+Dependency direction is one-way as listed: adapters depend on the protocol,
+never the reverse; UI depends on the API, never on storage. From Phase 1 this
+is enforced by an import-boundary check in CI.
 
-## Current owners
+## Shared contract register (summary)
 
-| Component | Owner | Since |
-|---|---|---|
-| C12 Governance | Coordinator | P0 |
-| C1–C11 | unassigned | — |
-
-## Shared contract register
-
-| Contract | Path | Version | Status | Consumers |
-|---|---|---|---|---|
-| Development operating contract | `docs/development-operating-contract.md` | 1.0.0 | **frozen** | all agents |
-| Agent task contract | `docs/agent-task-contract.md` | 1.0.0 | **frozen** | all agents |
-| Agent handoff contract | `docs/agent-handoff-contract.md` | 1.0.0 | **frozen** | all agents |
-| Universal event model | `contracts/events/` | — | not drafted | C2–C10 |
-| Adapter interface | `adapters/sdk/` | — | not drafted | C3 |
-| Query API | `api/` | — | not drafted | C8–C10 |
-
-Statuses: `not drafted` → `draft` → `in review` → `frozen` → `deprecated`.
-Parallel implementation against a contract is allowed only at `frozen`.
-
-## Active path claims
-
-| Task | Owner | Paths | Opened |
+| Contract | Version | Status | Tag |
 |---|---|---|---|
-| — | — | — | — |
+| Development operating contract | 1.1.0 | in_review → approved on recorded A + B verdicts; frozen when tagged | `contract-operating-contract-v1.1.0` (planned) |
+| Agent task contract | 1.1.0 | in_review → approved on recorded A + B verdicts; frozen when tagged | `contract-task-contract-v1.1.0` (planned) |
+| Agent handoff contract | 1.1.0 | in_review → approved on recorded A + B verdicts; frozen when tagged | `contract-handoff-contract-v1.1.0` (planned) |
+| Universal event protocol | — | not_drafted — **not before P2** | — |
+| Adapter interface | — | not_drafted — not before P3 | — |
+| Query API | — | not_drafted | — |
+
+Statuses: `not_drafted` → `draft` → `in_review` → `approved` → `frozen` → `deprecated`.
+Parallel implementation against a contract is allowed only at `frozen`.
+`approved` = both reviewers' approving verdicts are recorded; `frozen` =
+additionally an annotated tag `contract-<id>-v<version>` exists. Contract tags
+are created only in the dedicated repository (TD-002), so the process
+contracts cannot be `frozen` before migration. The checker enforces all of this.
+
+## Current owners and claims
+
+| Component | Owner |
+|---|---|
+| C12 Governance | Coordinator |
+| All others | unassigned |
+
+Active path claims: none (see `claims` in `governance-state.yaml`).

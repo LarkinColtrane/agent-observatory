@@ -1,45 +1,109 @@
 # Technical debt register for agent-observatory.
-# Every known shortcut. Debt is never tracked only in code comments.
+# Every known shortcut. Debt is never tracked only in code comments, and
+# entries are never deleted: repaid debt keeps its history.
 #
 # severity: low | medium | high | critical
 # status: open | scheduled | repaid | accepted
-schema_version: 1
+# component: component id from governance-state.yaml
+# blocks: phases that may not open while this debt is open
+schema_version: 2
 debt:
   - id: TD-001
-    title: Governance checks are a lightweight script, not full pre-commit/CI
+    title: Application quality tooling not yet present
     description: >
-      Phase 0 has no language toolchain, so L3 items (tests, typecheck,
-      Docker, migrations, failure injection) are n/a. Only
-      scripts/check-governance.py and a secret-pattern scan run. Pre-commit,
-      CI workflows, and gitleaks must be introduced with the stack.
+      Pre-Phase-1 cleanup added the governance/hygiene portion: pre-commit
+      (hygiene hooks, gitleaks, governance check), a pinned checksum-verified
+      full-history secret scan, governance CI workflow, and adversarial
+      checker tests. Still missing until source trees exist: Ruff, mypy
+      --strict, pytest, ESLint, tsc, Prettier, frontend tests, Docker/Compose,
+      Alembic, dependency audit, SAST, import-boundary checks, product failure
+      injection. These are Phase 1 deliverables.
     severity: medium
     status: open
     owner: coordinator
     component: C11
-    repayment_trigger: Phase 1 opening (stack ADR accepted)
+    blocks: [P2]
+    repayment_trigger: Phase 1 L3 gate (all application tooling running in CI).
     recorded: 2026-10-10
+    history:
+      - 2026-10-10: governance/hygiene portion repaid in pre-Phase-1 cleanup; remaining scope is Phase 1 work, so it blocks P2 rather than P1.
 
   - id: TD-002
-    title: Repository is shared with unrelated practice files
+    title: Project not yet in its dedicated private repository
     description: >
-      Og-Repo root contains practice files (README.md, test.txt, test2.text,
-      Result.txt) unrelated to agent-observatory. See assumption A-006.
-    severity: low
+      All agent-observatory work is on branch claude/agent-observatory-governance
+      of the public practice repository LarkinColtrane/Og-Repo. ADR-0004
+      requires a dedicated private repository named agent-observatory. The
+      repository does not exist yet and the agent cannot create it (owner
+      action). Migration procedure is prepared and tested in
+      docs/migration/dedicated-repo-migration.md. Until it is done, the P0
+      checkpoint tag cannot be created in the correct repository.
+    severity: high
     status: open
-    owner: coordinator
+    owner: project-owner
     component: C12
-    repayment_trigger: Before Phase 1 — decide on dedicated repo or cleanup.
+    blocks: [P1]
+    repayment_trigger: Owner creates the private repository; migration verified (clean history scan, no practice files, main established, P0 tag pushed).
     recorded: 2026-10-10
+    history:
+      - 2026-10-10: originally low severity "decide on dedicated repo or cleanup"; owner decided on a dedicated private repo; raised to high and made blocking for P1.
 
   - id: TD-003
-    title: Governance baseline has not had independent review
+    title: Governance baseline had no independent review
     description: >
-      P0 was authored by the coordinator alone; L3 item 10 (independent
-      review) did not run. Both specialist reviewers must review the
-      governance docs before any P1 implementation task starts.
+      P0 was authored by the coordinator alone and recorded as closed with an
+      unrun review item. Both independent reviews were completed
+      (docs/reviews/pre-phase-1-review-A.md, -B.md). Repaid only when both
+      reviewers' final verdicts are recorded in
+      docs/reviews/pre-phase-1-review-resolution.md.
     severity: medium
     status: open
     owner: coordinator
     component: C12
-    repayment_trigger: First task of Phase 1
+    blocks: [P1]
+    repayment_trigger: Before Phase 1 opens (was "first task of Phase 1" — corrected per review A-01).
+    recorded: 2026-10-10
+    history:
+      - 2026-10-10: reviews done; first verification round returned REQUEST_CHANGES from both (premature "repaid" corrected, N-01/B-16).
+
+  - id: TD-004
+    title: Branch protection and CODEOWNERS not enforced
+    description: >
+      .github/CODEOWNERS is committed, but branch protection on main (required
+      review, required governance CI, no force-push, no direct push) can only
+      be configured by the owner in the dedicated repository.
+    severity: high
+    status: open
+    owner: project-owner
+    component: C11
+    blocks: [P1]
+    repayment_trigger: Configured in the dedicated repository during migration.
+    recorded: 2026-10-10
+
+  - id: TD-005
+    title: Secret-scan script pinned for linux x86_64 only
+    description: >
+      scripts/secret-scan.sh verifies a checksum for the linux_x64 gitleaks
+      build only; other platforms exit with an explicit error. CI and the
+      cloud dev environment are linux x86_64.
+    severity: low
+    status: accepted
+    owner: coordinator
+    component: C11
+    blocks: []
+    repayment_trigger: When a contributor needs to run it on another platform.
+    recorded: 2026-10-10
+
+  - id: TD-006
+    title: Handoffs and task contracts are not machine-validated
+    description: >
+      The allowed (ran, result) combinations and required fields are
+      documented but only checked for gate reports. Handoffs are YAML in
+      prose; validation is manual by the receiver.
+    severity: low
+    status: open
+    owner: coordinator
+    component: C12
+    blocks: []
+    repayment_trigger: When the task board/handoff storage is chosen in Phase 1.
     recorded: 2026-10-10

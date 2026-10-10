@@ -8,7 +8,8 @@ expensive checks too often.
 
 1. **Right-size the team.** Spawn an agent only for a task that has its own
    contract and disjoint ownership. A task a single agent finishes in a few
-   turns is not split.
+   turns is not split. Hard limit 10 concurrent agents, target ≤ 8
+   ([parallel-work-policy.md](parallel-work-policy.md)).
 2. **Context is handed over, not rediscovered.** Task contracts list the exact
    files, contracts, and ADRs to read. Handoffs carry what was learned.
 3. **Read narrowly.** Search for symbols, then read the relevant ranges; do not

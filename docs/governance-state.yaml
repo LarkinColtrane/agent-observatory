@@ -1,0 +1,106 @@
+# Machine-readable governance state for agent-observatory.
+# Coordinator-owned (docs/development-operating-contract.md §4).
+# Validated by scripts/check-governance.py — the checker also hard-codes the
+# canonical phase order (ADR-0003), so reordering phases requires a reviewed
+# change to the checker itself.
+schema_version: 1
+project: agent-observatory
+
+repository:
+  dedicated: false                      # TD-002 — flips to true only after verified migration
+  required_name: agent-observatory
+  required_visibility: private
+  current_location: >
+    LarkinColtrane/Og-Repo (public practice repo), branch
+    claude/agent-observatory-governance — migration source only.
+
+# Phase statuses: not_started | in_progress | gate_review | closed
+# blocked_by: open debt ids whose `blocks` list includes this phase.
+phases:
+  - id: P0
+    name: Governance
+    status: gate_review
+    plan: docs/phases/P0-plan.md
+    gate_report: docs/phases/P0-gate-report.md
+    approved_not_applicable: [1, 3, 4, 6, 7, 9]
+    gate_tag: null                      # phase-P0-v1.1.0, to be created in the dedicated repo
+    review_record: docs/reviews/pre-phase-1-review-resolution.md
+    blocked_by: []
+  - {id: P1, name: Engineering foundation, status: not_started, blocked_by: [TD-002, TD-003, TD-004]}
+  - {id: P2, name: Universal agent event protocol, status: not_started, blocked_by: [TD-001]}
+  - {id: P3, name: Adapter / SDK layer, status: not_started, blocked_by: []}
+  - {id: P4, name: Agent state engine, status: not_started, blocked_by: []}
+  - {id: P5, name: Realtime observability, status: not_started, blocked_by: []}
+  - {id: P6, name: Operations dashboard, status: not_started, blocked_by: []}
+  - {id: P7, name: Analytics / scorecards, status: not_started, blocked_by: []}
+  - {id: P8, name: 2D virtual office, status: not_started, blocked_by: []}
+  - {id: P9, name: External integrations, status: not_started, blocked_by: []}
+  - {id: P10, name: Control room / workflow graph, status: not_started, blocked_by: []}
+  - {id: P11, name: Production hardening, status: not_started, blocked_by: []}
+
+components:
+  - {id: C1, name: Event protocol}
+  - {id: C2, name: Adapter SDK}
+  - {id: C3, name: Adapters}
+  - {id: C4, name: Ingestion}
+  - {id: C5, name: Event store}
+  - {id: C6, name: State engine}
+  - {id: C7, name: Query API}
+  - {id: C8, name: Operations dashboard}
+  - {id: C9, name: Control room / workflow graph}
+  - {id: C10, name: 2D virtual office}
+  - {id: C11, name: Platform & tooling}
+  - {id: C12, name: Governance}
+  - {id: C13, name: Identity & access}
+  - {id: C14, name: Realtime}
+  - {id: C15, name: Analytics / scorecards}
+  - {id: C16, name: External integrations}
+
+# Contract statuses: not_drafted | draft | in_review | approved | frozen | deprecated
+# approved/frozen require: existing path, semver version, reviewed_by both
+#   reviewers, and a review_record whose recorded final verdicts are approvals.
+# frozen additionally requires tag `contract-<id>-v<version>` to exist as an
+#   annotated git tag (created in the dedicated repository only).
+# not_before_phase: status must stay not_drafted until that phase has started;
+#   the checker hard-codes event-protocol -> P2 (ADR-0003).
+contracts:
+  - id: operating-contract
+    review_record: docs/reviews/pre-phase-1-review-resolution.md
+    path: docs/development-operating-contract.md
+    version: 1.1.0
+    status: in_review
+    reviewed_by: []
+    tag: null
+  - id: task-contract
+    review_record: docs/reviews/pre-phase-1-review-resolution.md
+    path: docs/agent-task-contract.md
+    version: 1.1.0
+    status: in_review
+    reviewed_by: []
+    tag: null
+  - id: handoff-contract
+    review_record: docs/reviews/pre-phase-1-review-resolution.md
+    path: docs/agent-handoff-contract.md
+    version: 1.1.0
+    status: in_review
+    reviewed_by: []
+    tag: null
+  - id: event-protocol
+    path: null
+    version: null
+    status: not_drafted
+    not_before_phase: P2
+  - id: adapter-interface
+    path: null
+    version: null
+    status: not_drafted
+    not_before_phase: P3
+  - id: query-api
+    path: null
+    version: null
+    status: not_drafted
+    not_before_phase: P4
+
+# Active path claims (coordinator records at assignment, releases at integration).
+# Each: {task: AO-P<n>-<seq>, owner: <agent>, paths: [<path prefix>, ...]}
+claims: []

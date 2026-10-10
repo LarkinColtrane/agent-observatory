@@ -1,0 +1,41 @@
+# Governance CI skeleton (pre-Phase-1). Application jobs (backend/frontend
+# lint, typecheck, tests, Docker, migrations) are added in Phase 1 alongside
+# the source trees they check. See docs/phase-quality-gates.md.
+name: governance
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: governance-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  governance:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0 # full history for the secret scan
+          persist-credentials: false
+      - uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5.4.0
+        with:
+          python-version: "3.12"
+      - name: Install governance tooling
+        run: python -m pip install --require-hashes -r requirements-governance.txt
+      - name: Governance check
+        run: python -I scripts/check-governance.py
+      - name: Governance checker adversarial tests
+        run: python -I -m unittest discover -s tests/governance -t . -v
+      - name: Pre-commit (all files; branch guard skipped in CI)
+        env:
+          SKIP: no-commit-to-branch
+        run: pre-commit run --all-files --show-diff-on-failure
+      - name: Secret scan (full history)
+        run: scripts/secret-scan.sh

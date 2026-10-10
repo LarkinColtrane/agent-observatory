@@ -1,0 +1,10 @@
+# Governance paths require review by the project owner (ADR-0004, TD-004).
+# Enforced only once branch protection is enabled in the dedicated repository.
+/docs/                    @LarkinColtrane
+/scripts/                 @LarkinColtrane
+/tests/governance/        @LarkinColtrane
+/.github/                 @LarkinColtrane
+/.pre-commit-config.yaml  @LarkinColtrane
+/.gitignore               @LarkinColtrane
+/requirements-governance.txt @LarkinColtrane
+/requirements-governance.in @LarkinColtrane
