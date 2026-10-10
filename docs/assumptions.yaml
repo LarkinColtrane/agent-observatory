@@ -1,0 +1,77 @@
+# Assumption register for agent-observatory.
+# Every assumption the project builds on. Invalidated assumptions trigger review
+# of every task/contract listed in `affects`.
+#
+# status: open | validated | invalidated
+# confidence: low | medium | high
+schema_version: 1
+assumptions:
+  - id: A-001
+    statement: >
+      A single universal event model can represent the activity of
+      heterogeneous agent systems (tool calls, messages, task lifecycle,
+      handoffs) without losing information needed for observability.
+    confidence: medium
+    status: open
+    owner: coordinator
+    affects: [C1, C2, C3, C6]
+    validation_plan: >
+      Phase 1: map at least two structurally different agent systems onto the
+      draft event model before freezing it; record unmappable fields.
+    recorded: 2026-10-10
+
+  - id: A-002
+    statement: >
+      Agent/workflow state can be derived deterministically from the event log
+      alone (event sourcing), so state can always be recomputed.
+    confidence: medium
+    status: open
+    owner: coordinator
+    affects: [C5, C6]
+    validation_plan: Replay tests with out-of-order and duplicate events once C6 exists.
+    recorded: 2026-10-10
+
+  - id: A-003
+    statement: >
+      Adapter payloads may contain secrets and sensitive content, so redaction
+      must happen at ingestion before persistence.
+    confidence: high
+    status: open
+    owner: security-reviewer
+    affects: [C3, C4, C5]
+    validation_plan: Security review of C4 design; fixture-based redaction tests.
+    recorded: 2026-10-10
+
+  - id: A-004
+    statement: >
+      Technology stack (language, storage, UI framework) is not yet chosen and
+      will be decided by ADR at the start of Phase 1.
+    confidence: high
+    status: open
+    owner: coordinator
+    affects: [C11]
+    validation_plan: ADR-0002 (stack selection) at Phase 1 opening.
+    recorded: 2026-10-10
+
+  - id: A-005
+    statement: >
+      agent-observatory shares no code, contracts, secrets, or infrastructure
+      with Quant Autonomy.
+    confidence: high
+    status: validated
+    owner: coordinator
+    affects: [all]
+    validation_plan: Confirmed by project charter; any change requires an ADR.
+    recorded: 2026-10-10
+
+  - id: A-006
+    statement: >
+      This governance baseline lives in the Og-Repo repository at the root
+      `docs/` directory; pre-existing practice files in the repo root are
+      unrelated to agent-observatory and are left untouched.
+    confidence: medium
+    status: open
+    owner: coordinator
+    affects: [C11, C12]
+    validation_plan: Confirm with project owner whether to move to a dedicated repository before Phase 1.
+    recorded: 2026-10-10

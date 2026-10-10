@@ -1,0 +1,20 @@
+# Secrets — never commit (see docs/security-baseline.md)
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa*
+id_ed25519*
+credentials.json
+secrets/
+*.secret
+
+# Tooling / OS
+__pycache__/
+*.pyc
+.venv/
+node_modules/
+.DS_Store

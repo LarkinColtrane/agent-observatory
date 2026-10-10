@@ -1,0 +1,45 @@
+# Technical debt register for agent-observatory.
+# Every known shortcut. Debt is never tracked only in code comments.
+#
+# severity: low | medium | high | critical
+# status: open | scheduled | repaid | accepted
+schema_version: 1
+debt:
+  - id: TD-001
+    title: Governance checks are a lightweight script, not full pre-commit/CI
+    description: >
+      Phase 0 has no language toolchain, so L3 items (tests, typecheck,
+      Docker, migrations, failure injection) are n/a. Only
+      scripts/check-governance.py and a secret-pattern scan run. Pre-commit,
+      CI workflows, and gitleaks must be introduced with the stack.
+    severity: medium
+    status: open
+    owner: coordinator
+    component: C11
+    repayment_trigger: Phase 1 opening (stack ADR accepted)
+    recorded: 2026-10-10
+
+  - id: TD-002
+    title: Repository is shared with unrelated practice files
+    description: >
+      Og-Repo root contains practice files (README.md, test.txt, test2.text,
+      Result.txt) unrelated to agent-observatory. See assumption A-006.
+    severity: low
+    status: open
+    owner: coordinator
+    component: C12
+    repayment_trigger: Before Phase 1 — decide on dedicated repo or cleanup.
+    recorded: 2026-10-10
+
+  - id: TD-003
+    title: Governance baseline has not had independent review
+    description: >
+      P0 was authored by the coordinator alone; L3 item 10 (independent
+      review) did not run. Both specialist reviewers must review the
+      governance docs before any P1 implementation task starts.
+    severity: medium
+    status: open
+    owner: coordinator
+    component: C12
+    repayment_trigger: First task of Phase 1
+    recorded: 2026-10-10
