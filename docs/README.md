@@ -28,6 +28,7 @@ Phase order: [roadmap.md](roadmap.md) · Current state: [governance-state.yaml](
 | [reviews/](reviews/pre-phase-1-review-resolution.md) | Independent governance reviews and resolutions |
 | [phases/P0-plan.md](phases/P0-plan.md) · [phases/P0-gate-report.md](phases/P0-gate-report.md) | Phase 0 plan and gate |
 | [migration/dedicated-repo-migration.md](migration/dedicated-repo-migration.md) | Moving to the dedicated private repository |
+| [migration-provenance.md](migration-provenance.md) | Original → migrated commit mapping and method |
 
 ## Commands
 
