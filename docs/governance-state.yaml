@@ -27,7 +27,7 @@ phases:
     gate_tag: null                      # phase-P0-v1.1.0, to be created in the dedicated repo
     review_record: docs/reviews/pre-phase-1-review-resolution.md
     blocked_by: []
-  - {id: P1, name: Engineering foundation, status: not_started, blocked_by: [TD-002, TD-003, TD-004]}
+  - {id: P1, name: Engineering foundation, status: not_started, blocked_by: [TD-002, TD-004]}
   - {id: P2, name: Universal agent event protocol, status: not_started, blocked_by: [TD-001]}
   - {id: P3, name: Adapter / SDK layer, status: not_started, blocked_by: []}
   - {id: P4, name: Agent state engine, status: not_started, blocked_by: []}
@@ -69,22 +69,22 @@ contracts:
     review_record: docs/reviews/pre-phase-1-review-resolution.md
     path: docs/development-operating-contract.md
     version: 1.1.0
-    status: in_review
-    reviewed_by: []
+    status: approved
+    reviewed_by: [reviewer-a, reviewer-b]
     tag: null
   - id: task-contract
     review_record: docs/reviews/pre-phase-1-review-resolution.md
     path: docs/agent-task-contract.md
     version: 1.1.0
-    status: in_review
-    reviewed_by: []
+    status: approved
+    reviewed_by: [reviewer-a, reviewer-b]
     tag: null
   - id: handoff-contract
     review_record: docs/reviews/pre-phase-1-review-resolution.md
     path: docs/agent-handoff-contract.md
     version: 1.1.0
-    status: in_review
-    reviewed_by: []
+    status: approved
+    reviewed_by: [reviewer-a, reviewer-b]
     tag: null
   - id: event-protocol
     path: null

@@ -194,6 +194,19 @@ class TestGovernanceState(CheckerCase):
         self.edit(self.STATE, "    status: gate_review\n", "    status: closed\n")
         self.assertFails(r"phase P0: closed without a gate_tag of the form phase-P0-v<semver>")
 
+    def pending_review(self) -> None:
+        """Reset the copied records to the pre-verdict state, so tests do not
+        depend on whatever review state the real repository has recorded."""
+        rec = self.path("docs/reviews/pre-phase-1-review-resolution.md")
+        text = rec.read_text()
+        marker = "<!-- final-verdicts -->"
+        self.assertIn(marker, text)
+        rec.write_text(text.split(marker, 1)[0] + marker + "\n")
+        st = self.path(self.STATE)
+        st.write_text(st.read_text().replace("    status: approved\n    reviewed_by: [reviewer-a, reviewer-b]",
+                                             "    status: in_review\n    reviewed_by: []"))
+        self.set_gate_row(10, "no", "not_run")
+
     def record_verdicts(self, a: str, b: str) -> None:
         rec = self.path("docs/reviews/pre-phase-1-review-resolution.md")
         rec.write_text(rec.read_text() + f"\n- **Reviewer A final outcome:** {a}\n- **Reviewer B final outcome:** {b}\n")
@@ -213,16 +226,19 @@ class TestGovernanceState(CheckerCase):
 
     def test_review_pass_without_recorded_verdicts(self) -> None:
         # Regression for N-01 / B-16.
+        self.pending_review()
         self.set_gate_row(10, "yes", "pass")
         self.assertFails(r"phase P0: gate item 10 is 'pass' but no recorded final verdict")
 
     def test_closed_with_nonexistent_tag(self) -> None:
         # Regression for B-19 / N-05 (s1): self-attested closure.
+        self.pending_review()
         self.record_verdicts("APPROVE", "APPROVE")
         self.close_p0()
         self.assertFails(r"gate_tag 'phase-P0-v1\.1\.0' does not exist as an annotated git tag")
 
     def test_closed_with_lightweight_tag(self) -> None:
+        self.pending_review()
         self.record_verdicts("APPROVE", "APPROVE")
         self.close_p0()
         self.git("tag", "phase-P0-v1.1.0")
@@ -235,6 +251,7 @@ class TestGovernanceState(CheckerCase):
     def test_legitimate_closure_passes(self) -> None:
         # Control: the rules are satisfiable (no deadlock) when evidence is real,
         # following the documented closure sequence.
+        self.pending_review()
         self.record_verdicts("REQUEST_CHANGES", "REQUEST_CHANGES")
         self.record_verdicts("APPROVE", "APPROVE_WITH_NOTES")
         self.make_dedicated()
@@ -247,12 +264,14 @@ class TestGovernanceState(CheckerCase):
 
     def test_closed_outside_dedicated_repository(self) -> None:
         # Regression for B-24 (N1): local annotated tag in the practice repo.
+        self.pending_review()
         self.record_verdicts("APPROVE", "APPROVE")
         self.git("tag", "-a", "phase-P0-v1.1.0", "-m", "P0")
         self.close_p0()
         self.assertFails(r"phase P0: cannot be closed outside the dedicated repository")
 
     def test_gate_tag_must_be_ancestor_of_head(self) -> None:
+        self.pending_review()
         self.record_verdicts("APPROVE", "APPROVE")
         self.make_dedicated()
         self.git("checkout", "-q", "--orphan", "elsewhere")
@@ -264,6 +283,7 @@ class TestGovernanceState(CheckerCase):
 
     def test_verdicts_in_html_comment_or_fence_ignored(self) -> None:
         # Regression for B-23 (N1/N3).
+        self.pending_review()
         rec = self.path("docs/reviews/pre-phase-1-review-resolution.md")
         rec.write_text(rec.read_text() + "\n<!--\n- **Reviewer A final outcome:** APPROVE\n-->\n"
                        "```\n- **Reviewer B final outcome:** APPROVE\n```\n")
@@ -271,6 +291,7 @@ class TestGovernanceState(CheckerCase):
         self.assertFails(r"no recorded final verdict from \['reviewer-a', 'reviewer-b'\]")
 
     def test_verdicts_before_marker_ignored(self) -> None:
+        self.pending_review()
         rec = self.path("docs/reviews/pre-phase-1-review-resolution.md")
         rec.write_text("- **Reviewer A final outcome:** APPROVE\n- **Reviewer B final outcome:** APPROVE\n" + rec.read_text())
         self.set_gate_row(10, "yes", "pass")
@@ -278,6 +299,7 @@ class TestGovernanceState(CheckerCase):
 
     def test_review_record_outside_reviews_dir(self) -> None:
         # Regression for B-23 (N2/N3).
+        self.pending_review()
         for bad in ("/etc/hostname", "docs/adr/0000-template.md", "docs/reviews/../adr/0000-template.md"):
             with self.subTest(record=bad):
                 st = self.path(self.STATE)
@@ -329,14 +351,12 @@ class TestGovernanceState(CheckerCase):
         self.assertFails(r"gate items missing: \[10\]")
 
     def test_open_blocking_debt_missing_from_blocked_by(self) -> None:
-        self.edit(self.STATE, "blocked_by: [TD-002, TD-003, TD-004]", "blocked_by: [TD-003, TD-004]")
+        self.edit(self.STATE, "blocked_by: [TD-002, TD-004]", "blocked_by: [TD-004]")
         self.assertFails(r"phase P1: open debt TD-002 blocks it but is not in blocked_by")
 
     def test_blocked_by_repaid_or_unknown_debt(self) -> None:
-        self.edit("docs/technical-debt.yaml", "status: accepted\n    owner: coordinator\n    component: C11\n    blocks: []",
-                  "status: accepted\n    owner: coordinator\n    component: C11\n    blocks: [P1]")
-        self.edit(self.STATE, "blocked_by: [TD-002, TD-003, TD-004]", "blocked_by: [TD-002, TD-003, TD-004, TD-005, TD-999]")
-        self.assertFails(r"blocked_by 'TD-005' is not open debt", r"unknown debt 'TD-999'")
+        self.edit(self.STATE, "blocked_by: [TD-002, TD-004]", "blocked_by: [TD-002, TD-004, TD-003, TD-999]")
+        self.assertFails(r"blocked_by 'TD-003' is not open debt", r"unknown debt 'TD-999'")
 
     def test_event_protocol_cannot_be_drafted_before_p2(self) -> None:
         self.edit(self.STATE, "  - id: event-protocol\n    path: null\n    version: null\n    status: not_drafted",
@@ -353,27 +373,32 @@ class TestGovernanceState(CheckerCase):
 
     def test_contract_review_claimed_without_recorded_verdicts(self) -> None:
         # Regression for N-01 / B-16: review recorded before it happened.
+        self.pending_review()
         self.approve_contract()
         self.assertFails(r"contract task-contract: claims review but no recorded final verdict")
 
     def test_contract_review_with_rejecting_latest_verdict(self) -> None:
+        self.pending_review()
         self.approve_contract()
         self.record_verdicts("APPROVE", "APPROVE")
         self.record_verdicts("APPROVE", "REQUEST_CHANGES")  # latest wins
         self.assertFails(r"latest verdicts are not approvals: \['reviewer-b=REQUEST_CHANGES'\]")
 
     def test_approved_contract_requires_existing_path(self) -> None:
+        self.pending_review()
         self.record_verdicts("APPROVE", "APPROVE_WITH_NOTES")
         self.approve_contract()
         self.edit(self.STATE, "path: docs/agent-task-contract.md", "path: docs/does-not-exist.md")
         self.assertFails(r"contract task-contract: approved but path 'docs/does-not-exist\.md' does not exist")
 
     def test_approved_contract_requires_both_reviewers(self) -> None:
+        self.pending_review()
         self.record_verdicts("APPROVE", "APPROVE")
         self.edit(self.STATE, "    status: in_review\n    reviewed_by: []", "    status: approved\n    reviewed_by: [reviewer-a]")
         self.assertFails(r"contract operating-contract: 'approved' without review by both reviewers")
 
     def test_frozen_contract_requires_existing_annotated_tag(self) -> None:
+        self.pending_review()
         self.record_verdicts("APPROVE", "APPROVE")
         self.approve_contract(status="frozen")
         self.edit(self.STATE, "status: frozen\n    reviewed_by: [reviewer-a, reviewer-b]\n    tag: null",
@@ -381,6 +406,7 @@ class TestGovernanceState(CheckerCase):
         self.assertFails(r"frozen tag 'contract-task-contract-v1\.1\.0' does not exist as an annotated git tag")
 
     def test_invalid_contract_status(self) -> None:
+        self.pending_review()
         self.edit(self.STATE, "    status: in_review\n", "    status: wibble@9.9.9\n")
         self.assertFails(r"invalid status 'wibble@9\.9\.9'")
 

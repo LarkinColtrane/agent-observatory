@@ -48,3 +48,20 @@ Findings are recorded verbatim from the reviewer's report.
 - Single copy with all of: P0-gate-report.md + ADR-0001 deleted (and their links), gate item 2 set not_run, overlapping claims on `core/` and `core/ingest/`, `affects: [C99, TD-999]`, severity `catastrophic`, repayment_trigger `""`, frozen contract status `wibble@9.9.9`: **PASS, rc=0**.
 - AKIA-pattern key committed then `git rm`'d (history-only): **PASS**.
 - Duplicate A-001 id: FAIL, detected.
+
+## Verification rounds (Reviewer B's own results)
+
+**Round 1 (staged tree) — REQUEST_CHANGES.** B-02, B-03, B-06, B-07, B-09,
+B-10, B-12..B-15 resolved; B-01, B-04, B-05, B-08, B-11 partial. New: B-16
+(MAJOR, review recorded before verdicts), B-17 (MAJOR, event-protocol
+deferral removable by YAML edit), B-18 (MAJOR, claim overlap via globs/`./`,
+duplicate tasks), B-19 (MAJOR, self-attested closure), B-20, B-21 (MINOR),
+B-22 (NIT). Bypass probes b1, b1b, b3, b4, b5, b6 all passed the checker.
+
+**Round 2 (commit 992eca2) — APPROVE_WITH_NOTES.** B-16..B-18, B-20..B-22 and
+partials B-01, B-04, B-05, B-08 resolved; b1..b6 now fail. B-19 partial and
+B-11 partial pending independent gate results. Notes (MINOR): B-23 verdict
+check is consistency not authenticity (verdicts in HTML comments/fences or a
+record outside `docs/reviews/` were accepted); B-24 P0 closable outside the
+dedicated repo (local tag / look-alike remote). Both fixed in 368429f;
+the independent validation agent confirmed the probes now fail.

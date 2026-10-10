@@ -1,29 +1,50 @@
 # P0 Gate Report — Governance
 
-- Phase: P0 · Run 2 (pre-Phase-1 cleanup) · Date: 2026-10-10
+- Phase: P0 · Run 3 · Date: 2026-10-10
 - Plan: [P0-plan.md](P0-plan.md) (approves n/a items 1, 3, 4, 6, 7, 9)
-- Run by: Coordinator acting as integrator for this docs-only phase. Every row is re-runnable with the command shown.
-- Environment: Linux x86_64, Python 3.13, pre-commit 4.6.2, gitleaks 8.21.2 (checksum-verified).
+- Run by: **independent integration/validation agent** (not the coordinator) on commits `992eca2` and `368429f`, in its own clone, with its own venv installed via `pip install --require-hashes -r requirements-governance.txt`. Results below are from `368429f`.
+- Commit `4b1b7d0` (host-anchored remote check, validation finding N4b) was added after validation; it was verified by the coordinator only (L1: checker PASS with identical counts, 68 tests OK, `pre-commit run --all-files` exit 0, bandit 15 LOW / 0 medium / 0 high).
+- Environment: Linux x86_64, Python 3.13.16, pre-commit 4.0.1, PyYAML 6.0.2 (hash-pinned), gitleaks 8.21.2 (checksum-verified).
 - **Gate decision: NOT PASSED — P0 remains `gate_review`.** Item 12 cannot run until the dedicated repository exists (TD-002).
 
 | # | Check | Command | Ran | Result | Notes |
 |---|---|---|---|---|---|
 | 1 | Full test suite | — | no | not_applicable | Approved in P0 plan: no application code |
-| 2 | Lint | `pre-commit run check-yaml --all-files && pre-commit run check-json --all-files && python3 -I scripts/check-governance.py` | yes | pass | Scope: YAML/JSON syntax + governance lint; no source code exists |
+| 2 | Lint | `pre-commit run check-yaml --all-files` · `pre-commit run check-json --all-files` · `python -I scripts/check-governance.py` | yes | pass | Exit 0/0/0. check-yaml Passed; check-json Skipped (no JSON files exist); checker PASS. Scope: YAML + governance lint only |
 | 3 | Format | — | no | not_applicable | Approved in P0 plan; whitespace/EOL hygiene covered by item 5 |
 | 4 | Strict typecheck | — | no | not_applicable | Approved in P0 plan: no typed application code |
-| 5 | Pre-commit | `pre-commit run --all-files` | yes | pass | All hooks incl. gitleaks, detect-private-key, governance check, checker tests |
+| 5 | Pre-commit | `pre-commit run --all-files` then `git status --porcelain` | yes | pass | Exit 0; 12 hooks Passed, check-json/check-toml Skipped; porcelain empty; the 4 practice-repo files byte-identical (sha256) before/after |
 | 6 | Docker | — | no | not_applicable | Approved in P0 plan: no images |
 | 7 | Migrations | — | no | not_applicable | Approved in P0 plan: no database |
-| 8 | Security checks | `scripts/secret-scan.sh` · `scripts/secret-scan.sh --working-tree` · `pip-audit -r requirements-governance.txt` · `bandit -r scripts/ tests/` | yes | pass | gitleaks full history all refs: no leaks; working tree: no leaks; pip-audit: no known vulnerabilities; bandit: 0 medium/high, 9 LOW (B404/B603/B607: `subprocess` running `git` with list args, no shell — intentional) |
+| 8 | Security checks | `scripts/secret-scan.sh` · `scripts/secret-scan.sh --working-tree` · `pip-audit -r requirements-governance.txt` · `bandit -r scripts/ tests/` | yes | pass | gitleaks history (all refs): "8 commits scanned … no leaks found", exit 0 (gitleaks skips the 2 practice-repo merge commits; the checker backstop covers all reachable blobs); working tree: no leaks; pip-audit: no known vulnerabilities; bandit: HIGH 0, MEDIUM 0, LOW 15 (B603×7, B607×6, B404×2 — `subprocess` running `git`/`python` with list args, no shell) |
 | 9 | Failure injection | — | no | not_applicable | Approved in P0 plan: product failure injection; no product |
-| 10 | Independent review | Reviewer A + Reviewer B reviews, then verification of resolutions by the same reviewers | no | not_run | Pending final verdicts — recorded only once they exist in `docs/reviews/pre-phase-1-review-resolution.md` (review N-01/B-16) |
-| 11 | Registers | `python3 -I scripts/check-governance.py` · `python3 -I -m unittest discover -s tests/governance -t . -v` | yes | pass | Checker output: `register counts: assumptions=8, debt=6 (open debt=4)`; adversarial tests all pass |
-| 12 | Git checkpoint | `git tag -a phase-P0-v1.1.0` + push in `agent-observatory` | no | not_run | Blocked: dedicated repository does not exist (TD-002). No tag created in the practice repository by design (ADR-0004) |
+| 10 | Independent review | Reviewer A + Reviewer B initial reviews and two verification rounds each | yes | pass | Final verdicts: Reviewer A APPROVE_WITH_NOTES, Reviewer B APPROVE_WITH_NOTES (recorded in `docs/reviews/pre-phase-1-review-resolution.md`); all notes fixed and confirmed by the validation agent |
+| 11 | Registers | `python -I scripts/check-governance.py` · `python -I -m unittest discover -s tests/governance -t . -v` | yes | pass | Checker prints `info: register counts: assumptions=8, debt=7 (open debt=6)` on 368429f; Ran 68 tests … OK. After this records commit marks TD-003 repaid, the checker prints `open debt=5` |
+| 12 | Git checkpoint | `git tag -a phase-P0-v1.1.0` + push in `agent-observatory` | no | not_run | Blocked: dedicated repository does not exist (TD-002). No tag created in the practice repository by design (ADR-0004); the checker forbids closing P0 outside it |
 
 ## Adversarial evidence (supporting items 8 and 11)
 
-- **Checker mutation testing:** six deliberately broken checker variants
+- **Bypass probes (validation agent, 368429f):** Reviewer B's N1–N4 and a
+  case-differing claim overlap each FAIL (rc=1) with the expected message;
+  the validation agent's own variant N4b initially PASSED and was fixed in
+  4b1b7d0 (regression tests added).
+- **Migration rehearsal (validation agent):** `format-patch df5f2a0..368429f`
+  → `git am` onto an empty `main`: 3 patches applied; path filter printed
+  nothing; only project commits with identical author/date/message; clean
+  tree; gitleaks "3 commits scanned … no leaks found"; checker PASS and 68
+  tests OK in a fresh hash-pinned venv. Tree = 368429f minus exactly the 4
+  practice-repo files.
+
+### Coordinator's earlier adversarial evidence (still valid)
+
+- **Checker mutation testing (final 68-test suite, coordinator):** nine
+  broken checker variants — always exit 0; state check removed; secret
+  matching disabled; closed-with-unrun allowed; rejecting verdict ignored;
+  phase-tag existence skipped; claim case-folding removed; event-protocol
+  deferral hard-code removed; HTML-comment stripping removed — each detected
+  (72, 36, 14, 1, 1, 2, 1, 1, 1 failing tests).
+
+- **Checker mutation testing (on the 46-test suite):** six deliberately broken checker variants
   (always exit 0; state check removed; secret check removed; secret matching
   disabled; "closed with unrun item" allowed; phase-transition rule disabled)
   were each run against the test suite in a scratch copy. Every mutant was
@@ -35,13 +56,17 @@
   case (test `test_history_only_secret`). Tampered checksum → exit 1, no
   binary installed.
 
-## Migration rehearsal (supporting evidence, not a gate item)
-
-Replayed the project commits onto an empty repository in a scratch directory
-using the procedure in `docs/migration/dedicated-repo-migration.md`. Result:
-only project files present, author/date/message preserved, clean tree.
-
 ## Superseded runs
+
+### Run 2 (coordinator self-run on the staged tree — superseded)
+
+Drafted by the coordinator before independent validation. The validation
+agent found these errors in it: item 11 quoted `open debt=4` (checker printed
+5); item 8 reported bandit "9 LOW" for `scripts/ tests/` (actual 13 then);
+environment listed pre-commit 4.6.2 (pinned is 4.0.1); item 2 called a
+skipped check-json a pass. Item 10 had been pre-recorded as `pass` before
+any verdict existed (review N-01/B-16) and was reverted. Run 3 replaces it.
+
 
 ### Run 1 (2026-10-10, tag `gov-baseline-v1.0.0`, local only — never pushed)
 

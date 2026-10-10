@@ -2,7 +2,7 @@
 
 - Phase: P0 · Opened: 2026-10-10 (retroactively documented during pre-Phase-1 cleanup, per review B-01/A-01)
 - Scope: development operating system — governance documents, registers, ADRs, governance tooling (checker, adversarial tests, secret scanning, pre-commit, CI skeleton), repository isolation decision. **No application functionality.**
-- Team: Coordinator (author) · Reviewer A (security + data integrity) · Reviewer B (concurrency + architecture). The coordinator also acted as integrator for this docs-only phase; the gate evidence is re-runnable by anyone with the commands in the gate report.
+- Team: Coordinator (author) · Reviewer A (security + data integrity) · Reviewer B (concurrency + architecture) · independent integration/validation agent (gate run and migration rehearsal).
 - Contracts produced: operating, task, handoff contracts v1.1.0 — `approved` once both reviewers' final verdicts are recorded; `frozen` when tagged `contract-<id>-v1.1.0` in the dedicated repository.
 - Sign-off: Reviewer A and Reviewer B (see `docs/reviews/pre-phase-1-review-resolution.md`).
 

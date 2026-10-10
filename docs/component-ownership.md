@@ -42,9 +42,9 @@ is enforced by an import-boundary check in CI.
 
 | Contract | Version | Status | Tag |
 |---|---|---|---|
-| Development operating contract | 1.1.0 | in_review → approved on recorded A + B verdicts; frozen when tagged | `contract-operating-contract-v1.1.0` (planned) |
-| Agent task contract | 1.1.0 | in_review → approved on recorded A + B verdicts; frozen when tagged | `contract-task-contract-v1.1.0` (planned) |
-| Agent handoff contract | 1.1.0 | in_review → approved on recorded A + B verdicts; frozen when tagged | `contract-handoff-contract-v1.1.0` (planned) |
+| Development operating contract | 1.1.0 | **approved** (A + B verdicts recorded); frozen when tagged in the dedicated repo | `contract-operating-contract-v1.1.0` (planned) |
+| Agent task contract | 1.1.0 | **approved** (A + B verdicts recorded); frozen when tagged in the dedicated repo | `contract-task-contract-v1.1.0` (planned) |
+| Agent handoff contract | 1.1.0 | **approved** (A + B verdicts recorded); frozen when tagged in the dedicated repo | `contract-handoff-contract-v1.1.0` (planned) |
 | Universal event protocol | — | not_drafted — **not before P2** | — |
 | Adapter interface | — | not_drafted — not before P3 | — |
 | Query API | — | not_drafted | — |

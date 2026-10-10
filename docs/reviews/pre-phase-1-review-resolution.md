@@ -61,8 +61,28 @@ B-16..B-22. Bypass probes the reviewers demonstrated are now regression tests.
 | N-07 | MINOR | ADR-0002 silent on Redis data | Redis holds only redacted data; auth (+TLS outside local dev); persistence off or redacted-only. |
 | N-08 | NIT | secret-scan prints only a count | Writes a redacted JSON report and prints rule/file/line/commit for each finding (never values). |
 
+## Verification round 2 (both reviewers: APPROVE_WITH_NOTES)
+
+| ID | Sev | Note | Resolution |
+|---|---|---|---|
+| A-note-1 / B-23 | MINOR | Verdict check is consistency, not authenticity; verdicts inside HTML comments/fences or in a record outside `docs/reviews/` were accepted | Verdicts parsed only after the `final-verdicts` marker with comments and fences stripped; record must be under `docs/reviews/`; operating contract states the limitation; authenticity tracked as TD-007 (enforced by branch protection, TD-004). Commit 368429f. |
+| A-note-2 | MINOR | Claim overlap case-sensitive | Case-folded comparison + test. Commit 368429f. |
+| B-24 | MINOR | P0 closable outside the dedicated repo | `closed` requires `dedicated: true`, an annotated gate tag that is an ancestor of HEAD, and a remote matching `LarkinColtrane/agent-observatory`. Commit 368429f. |
+| N4b (validation agent) | MINOR | Remote regex not anchored to host | Host-anchored match + tests. Commit 4b1b7d0. |
+| B-11 | MINOR | Coordinator acted as integrator | Gate items 2, 5, 8, 11 and the migration rehearsal were run by an independent integration/validation agent on 992eca2 and 368429f; the gate report records its results, including the corrections it found in the coordinator's draft. |
+| B nit | NIT | Gate report environment line said pre-commit 4.6.2 | Corrected to the pinned 4.0.1 used by the validation agent. |
+
+Reviewer reports with their own verification results:
+[pre-phase-1-review-A.md](pre-phase-1-review-A.md) ·
+[pre-phase-1-review-B.md](pre-phase-1-review-B.md).
+
 ## Final verdicts
 
-Recorded in the form the checker parses. The latest line per reviewer counts.
+Recorded in the form the checker parses (latest line per reviewer counts).
+Each verdict was returned by the reviewer for commit 992eca2; its notes were
+then fixed in 368429f/4b1b7d0 and confirmed by the independent validation
+agent. The checker verifies consistency, not authorship (TD-007).
 
 <!-- final-verdicts -->
+- **Reviewer A final outcome:** APPROVE_WITH_NOTES — see [pre-phase-1-review-A.md](pre-phase-1-review-A.md), verification round 2
+- **Reviewer B final outcome:** APPROVE_WITH_NOTES — see [pre-phase-1-review-B.md](pre-phase-1-review-B.md), verification round 2

@@ -41,4 +41,4 @@ Procedure: [`docs/migration/dedicated-repo-migration.md`](../migration/dedicated
 
 ## Review
 
-- Reviewer A / Reviewer B: see `docs/reviews/pre-phase-1-review-resolution.md`.
+- Reviewer A: APPROVE_WITH_NOTES · Reviewer B: APPROVE_WITH_NOTES — see `docs/reviews/pre-phase-1-review-resolution.md`.

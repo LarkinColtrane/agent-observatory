@@ -44,4 +44,4 @@ validate it adversarially invites a breaking change in Phase 3+.
 
 ## Review
 
-- Reviewer A / Reviewer B: see `docs/reviews/pre-phase-1-review-resolution.md`.
+- Reviewer A: APPROVE_WITH_NOTES · Reviewer B: APPROVE_WITH_NOTES — see `docs/reviews/pre-phase-1-review-resolution.md`.

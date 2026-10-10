@@ -91,5 +91,5 @@ must be at least two weeks old when adopted.
 
 ## Review
 
-- Reviewer A (security + data integrity): see `docs/reviews/pre-phase-1-review-A.md`.
-- Reviewer B (concurrency + architecture): see `docs/reviews/pre-phase-1-review-B.md`.
+- Reviewer A (security + data integrity): APPROVE_WITH_NOTES (note N-07, Redis data rules, applied) — `docs/reviews/pre-phase-1-review-A.md`.
+- Reviewer B (concurrency + architecture): APPROVE_WITH_NOTES — modular-monolith rationale and exclusions judged sound — `docs/reviews/pre-phase-1-review-B.md`.

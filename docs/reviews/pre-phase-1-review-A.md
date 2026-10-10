@@ -59,3 +59,18 @@ Unmodified baseline: PASS (exit 0). Then:
 - `.gitignore`: `.envrc`, `.netrc`, `.npmrc`, `.pypirc`, `.aws/credentials`, `kubeconfig`, `id_ecdsa`, `secrets.yaml`, `service-account.json`, `terraform.tfstate` all addable (not ignored).
 
 Positive: the checker never prints matched values (file + truncated pattern only).
+
+## Verification rounds (Reviewer A's own results)
+
+**Round 1 (staged tree) — REQUEST_CHANGES.** A-02..A-13, A-15 resolved; A-01,
+A-14 partial. New: N-01 (MAJOR, review recorded before it happened), N-02
+(MAJOR, pre-commit rewrote practice-repo files, migration `git am` failed),
+N-03..N-08 (MINOR/NIT). Demonstrated: commit-message and tag-message
+secrets, 6 MB blob, prefixed password variable, user-less credentialed URL,
+self-attested closure (s1/s2) and claim globs (s3) all passed the checker.
+
+**Round 2 (commit 992eca2) — APPROVE_WITH_NOTES.** N-01..N-08, A-01, A-14
+resolved. Re-ran all round-1 attacks on clones: each now fails (rc=1) with
+the expected message; no secret value echoed. Notes (MINOR): pasted verdict
+lines are indistinguishable from real ones (→ TD-007, enforced by TD-004);
+claim overlap was case-sensitive (fixed in 368429f).
