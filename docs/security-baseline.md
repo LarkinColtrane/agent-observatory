@@ -74,7 +74,10 @@ configurable policy. Store the minimum needed; retention is configurable.
 - Least privilege for every credential an adapter uses (read-only where
   possible).
 - Every API/UI endpoint, including WebSocket/SSE streams, is authenticated;
-  authorization checked per workspace/tenant.
+  authorization checked per workspace/tenant. **Exception (ADR-0005):** the
+  operational endpoints `/healthz`, `/readyz`, `/version` are
+  unauthenticated and may expose only status booleans, check names, the
+  version and the git SHA — never secrets, hostnames, or error details.
 - Audit log for configuration and access-control changes.
 
 ## Dependencies & supply chain

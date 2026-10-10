@@ -116,7 +116,7 @@ contracts:
 # Active path claims (coordinator records at assignment, releases at integration).
 # Each: {task: AO-P<n>-<seq>, owner: <agent>, paths: [<path prefix>, ...]}
 claims:
-  - {task: AO-P1-001, owner: coordinator, paths: [docs/adr/0005-phase-1-foundation-contract.md, docs/phases/P1-plan.md, backend/pyproject.toml, backend/uv.lock, backend/src/observatory/__init__.py, backend/src/observatory/main.py, .github/workflows/release-tags.yml, scripts/release-tags.py, tests/governance/test_release_tags.py]}
+  - {task: AO-P1-001, owner: coordinator, paths: [docs/adr/0005-phase-1-foundation-contract.md, docs/phases/P1-plan.md, backend/pyproject.toml, backend/uv.lock, backend/src/observatory/__init__.py, backend/src/observatory/main.py, backend/src/observatory/core/config.py, backend/src/observatory/core/health.py, backend/tests/unit/test_config.py, backend/tests/unit/test_health.py, .github/workflows/release-tags.yml, scripts/release-tags.py, tests/governance/test_release_tags.py]}
 
 # Annotated tags to be created by .github/workflows/release-tags.yml on main
 # (ADR-0005 §7). Entries stay as the audit record; existing tags are never moved.

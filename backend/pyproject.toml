@@ -85,11 +85,11 @@ root_package = "observatory"
 [[tool.importlinter.contracts]]
 name = "Layered architecture (ADR-0005 §2)"
 type = "layers"
-layers = ["observatory.main", "observatory.api", "observatory.db | observatory.cache", "observatory.core"]
+layers = ["observatory.main", "observatory.api | observatory.db | observatory.cache", "observatory.core"]
 containers = []
 exhaustive = false
 
 [[tool.importlinter.contracts]]
-name = "db and cache are independent"
+name = "api, db and cache are independent; only main composes (ADR-0005 §2)"
 type = "independence"
-modules = ["observatory.db", "observatory.cache"]
+modules = ["observatory.api", "observatory.db", "observatory.cache"]

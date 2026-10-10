@@ -28,7 +28,7 @@ class TestValidate(unittest.TestCase):
     def test_empty_and_valid(self) -> None:
         self.assertEqual(rt.validate(None), [])
         self.assertEqual(rt.validate([]), [])
-        self.assertEqual(rt.validate([entry(), entry(tag="phase-P1-v1.0.0")]), [])
+        self.assertEqual(rt.validate([entry(), entry(tag="phase-P1-v1.0.0", commit="self")]), [])
 
     def test_rejects_arbitrary_ref_names(self) -> None:
         for bad in ("main", "refs/heads/main", "v1.0.0", "phase-P1-v1", "contract-X-v1.0.0",
@@ -37,7 +37,7 @@ class TestValidate(unittest.TestCase):
                 self.assertTrue(any("invalid tag name" in p for p in rt.validate([entry(tag=bad)])))
 
     def test_rejects_short_or_symbolic_commits(self) -> None:
-        for bad in ("8ce0ed3", "HEAD", "main", SHA.upper(), SHA + "0"):
+        for bad in ("8ce0ed3", "HEAD", "main", SHA.upper(), SHA + "0", "Self", "self~1"):
             with self.subTest(commit=bad):
                 self.assertTrue(any("40-hex" in p for p in rt.validate([entry(commit=bad)])))
 

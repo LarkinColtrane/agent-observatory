@@ -502,6 +502,51 @@ class TestGovernanceState(CheckerCase):
         self.edit(self.STATE, "    status: not_drafted\n    not_before_phase: P2", "    status: draft")
         self.assertFails(r"contract event-protocol: not_before_phase must be P2")
 
+    def approve_p1_contract(self, verdicts: bool = True) -> None:
+        def apply(d: dict[str, Any]) -> None:
+            c = next(c for c in d["contracts"] if c["id"] == "phase1-foundation")
+            c.update(status="approved", reviewed_by=["reviewer-a", "reviewer-b"])
+        self.update_state(apply)
+        if verdicts:
+            rec = self.path("docs/reviews/phase-1-contract-review.md")
+            rec.write_text(rec.read_text().split("<!-- final-verdicts -->")[0] + "<!-- final-verdicts -->\n"
+                           "- **Reviewer A final outcome:** APPROVE\n- **Reviewer B final outcome:** APPROVE\n")
+
+    def set_pending(self, *entries: dict[str, Any]) -> None:
+        self.update_state(lambda d: d.__setitem__("pending_tags", list(entries)))
+
+    def test_pending_contract_tag_requires_approval(self) -> None:
+        # Review P1A-05: no tag for a contract that is not approved by both reviewers.
+        self.set_pending({"tag": "contract-phase1-foundation-v1.0.0", "commit": "self", "message": "m"})
+        self.assertFails(r"contract phase1-foundation v1\.0\.0 is not approved")
+
+    def test_pending_contract_tag_requires_verdicts(self) -> None:
+        self.approve_p1_contract(verdicts=False)
+        self.set_pending({"tag": "contract-phase1-foundation-v1.0.0", "commit": "self", "message": "m"})
+        self.assertFails(r"pending_tags\[0\] contract-phase1-foundation-v1\.0\.0: no recorded final verdict")
+
+    def test_pending_contract_tag_version_must_match(self) -> None:
+        self.approve_p1_contract()
+        self.set_pending({"tag": "contract-phase1-foundation-v2.0.0", "commit": "self", "message": "m"})
+        self.assertFails(r"contract phase1-foundation v2\.0\.0 is not approved")
+
+    def test_pending_tag_shape_and_phase_rules(self) -> None:
+        self.set_pending({"tag": "refs/heads/main", "commit": "self", "message": "m"},
+                         {"tag": "contract-nope-v1.0.0", "commit": "HEAD", "message": ""},
+                         {"tag": "phase-P1-v1.0.0", "commit": "self", "message": "m"})
+        self.assertFails(r"pending_tags\[0\]: invalid tag name 'refs/heads/main'",
+                         r"pending_tags\[1\] contract-nope-v1\.0\.0: commit must be a 40-hex sha or 'self'",
+                         r"pending_tags\[1\] contract-nope-v1\.0\.0: message must be non-empty",
+                         r"unknown contract 'nope'",
+                         r"pending_tags\[2\] phase-P1-v1\.0\.0: phase P1 is not in gate_review/closed")
+
+    def test_pending_contract_tag_for_approved_contract_passes(self) -> None:
+        # Control: the rule is satisfiable once both verdicts are recorded.
+        self.approve_p1_contract()
+        self.set_pending({"tag": "contract-phase1-foundation-v1.0.0", "commit": "self", "message": "m"})
+        res = self.run_checker()
+        self.assertEqual(res.returncode, 0, res.stdout)
+
     def test_overlapping_claims(self) -> None:
         self.set_claims([{"task": "AO-P1-001", "owner": "impl-1", "paths": ["backend/"]},
                          {"task": "AO-P1-002", "owner": "impl-2", "paths": ["backend/src/ingest"]}])

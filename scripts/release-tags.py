@@ -2,12 +2,17 @@
 """Create annotated tags listed in docs/governance-state.yaml `pending_tags`.
 
 Run only by .github/workflows/release-tags.yml on main (ADR-0005 §7).
-Each entry: {tag: <name>, commit: <40-hex sha>, message: <text>}.
+Each entry: {tag: <name>, commit: <40-hex sha> | self, message: <text>}.
+`self` resolves to the commit that first added the tag name to
+docs/governance-state.yaml, so it is stable across later pushes.
+The push token is read from GH_TOKEN and used only for `git push`.
 Never moves or deletes tags. Exit 0 = all requested tags present at the
 requested commits; 1 = refused/failed.
 """
 from __future__ import annotations
 
+import base64
+import os
 import re
 import subprocess
 import sys
@@ -42,11 +47,18 @@ def validate(entries: object) -> list[str]:
             problems.append(f"pending_tags[{i}]: duplicate tag {tag}")
         else:
             seen.add(tag)
-        if not isinstance(commit, str) or not SHA_RE.match(commit):
-            problems.append(f"pending_tags[{i}]: commit must be a full 40-hex sha")
+        if not isinstance(commit, str) or not (commit == "self" or SHA_RE.match(commit)):
+            problems.append(f"pending_tags[{i}]: commit must be a full 40-hex sha or 'self'")
         if not isinstance(msg, str) or not msg.strip():
             problems.append(f"pending_tags[{i}]: message must be non-empty")
     return problems
+
+
+def resolve_self(tag: str) -> str | None:
+    """First commit on main that added `tag` to the governance state file."""
+    out = git("log", "--format=%H", "--reverse", "-S", tag, "origin/main", "--",
+              "docs/governance-state.yaml").stdout.split()
+    return out[0] if out else None
 
 
 def main() -> int:
@@ -57,10 +69,26 @@ def main() -> int:
         for p in problems:
             print(f"::error::{p}")
         return 1
-    git("fetch", "--tags", "--force", "origin")
+    token = os.environ.get("GH_TOKEN", "")
+    repo = os.environ.get("GITHUB_REPOSITORY", "")
+    if entries and (not token or not re.fullmatch(r"[\w.-]+/[\w.-]+", repo)):
+        print("::error::GH_TOKEN and GITHUB_REPOSITORY are required to push tags")
+        return 1
+    # Basic auth header (as actions/checkout does); never put the token in a URL.
+    basic = base64.b64encode(f"x-access-token:{token}".encode()).decode()
+    push_auth = ("-c", f"http.https://github.com/.extraheader=AUTHORIZATION: basic {basic}")
+    push_url = f"https://github.com/{repo}.git"
+    git("fetch", "--tags", "origin")
     failed = False
     for e in entries or []:
         tag, commit, msg = e["tag"], e["commit"], e["message"]
+        if commit == "self":
+            resolved = resolve_self(tag)
+            if resolved is None:
+                print(f"::error::{tag}: could not resolve 'self' from history")
+                failed = True
+                continue
+            commit = resolved
         existing = git("rev-parse", "-q", "--verify", f"refs/tags/{tag}^{{commit}}", check=False).stdout.strip()
         if existing:
             if existing == commit:
@@ -80,7 +108,11 @@ def main() -> int:
         git("-c", "user.name=github-actions[bot]",
             "-c", "user.email=41898282+github-actions[bot]@users.noreply.github.com",
             "tag", "-a", tag, commit, "-m", msg)
-        git("push", "origin", f"refs/tags/{tag}:refs/tags/{tag}")  # never --force
+        # Never --force. The credential exists only in this command's -c argument.
+        if git(*push_auth, "push", push_url, f"refs/tags/{tag}:refs/tags/{tag}", check=False).returncode != 0:
+            print(f"::error::{tag}: push refused")
+            failed = True
+            continue
         peeled = git("ls-remote", "origin", f"refs/tags/{tag}^{{}}").stdout.split()
         if not peeled or peeled[0] != commit:
             print(f"::error::{tag}: remote verification failed")
