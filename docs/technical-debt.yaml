@@ -191,3 +191,21 @@ debt:
     blocks: []
     repayment_trigger: Pinned actions updated; CI runs without the deprecation warning.
     recorded: 2026-10-10
+
+  - id: TD-011
+    title: GitHub secret scanning and push protection disabled
+    description: >
+      Now that the repository is public, GitHub secret scanning and push
+      protection are available at no cost but are disabled
+      (security_and_analysis, 2026-10-10). gitleaks in pre-commit and the
+      governance CI job remains the enforced control, so this is defence in
+      depth. The agent cannot change the setting (proxy refuses settings
+      writes). Owner enables Settings → Code security → Secret Protection
+      (secret scanning + push protection).
+    severity: medium
+    status: open
+    owner: project-owner
+    component: C11
+    blocks: []
+    repayment_trigger: security_and_analysis reports secret_scanning and secret_scanning_push_protection enabled.
+    recorded: 2026-10-10

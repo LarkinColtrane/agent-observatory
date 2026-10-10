@@ -35,7 +35,10 @@ the agent then verifies them (see "Verification").
 | Merge methods | **squash only** | API |
 | Auto-delete head branches | **on** | API |
 | Ruleset `main-protection` | **active**, empty bypass, `main` + `protection-probe` — verified behaviourally | rulesets API + probes |
-| Dependabot alerts, dependency graph, Actions default token, secret scanning, push protection | NOT_VERIFIABLE_FROM_SESSION (403); a Dependabot dependency-graph run was observed | — |
+| Dependency graph | **on** (`GET dependency-graph/sbom` → 200; Dependabot graph runs observed) | API |
+| Secret scanning / push protection | **disabled** (`security_and_analysis`) → **Owner: enable** (free for public repositories; TD-011) | API |
+| Dependabot security updates | disabled (`security_and_analysis`) | API |
+| Dependabot alerts, Actions default workflow permissions | NOT_VERIFIABLE_FROM_SESSION (proxy 403) | — |
 
 Owner follow-ups (optional, non-blocking): in the ruleset, restrict allowed
 merge methods to squash (the repository setting already enforces it) and turn

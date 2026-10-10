@@ -65,6 +65,13 @@ This evidence was merged through the protected path: feature branch
 `verify/p0-public-closure` → PR #1 → `governance` check → squash merge into
 `main` (no bypass). The temporary probe job was removed before the merge.
 
+## Public-repository security settings
+
+Dependency graph on; secret scanning and push protection **disabled** (owner
+action, TD-011 — gitleaks in pre-commit and CI remains the enforced control);
+Dependabot alerts and Actions default token permissions not verifiable from
+the session (proxy 403).
+
 ## Publication metadata (non-blocking)
 
 Recorded as debt: TD-008 (no license — owner decision), TD-009 (root README,
