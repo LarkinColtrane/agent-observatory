@@ -10,7 +10,7 @@ repository:
   dedicated: true                       # migrated and verified 2026-10-10 (TD-002 repaid)
   required_owner: LarkinColtrane
   required_name: agent-observatory
-  required_visibility: private
+  required_visibility: public          # made public 2026-10-10 (owner)
   current_location: >
     github.com/LarkinColtrane/agent-observatory (public since 2026-10-10), default branch main.
     Migration provenance: docs/migration-provenance.md.
@@ -27,7 +27,11 @@ phases:
     gate_tag: phase-P0-v1.1.0           # annotated, -> 8ce0ed3; published 2026-10-10 via owner-authorized bootstrap workflow
     review_record: docs/reviews/pre-phase-1-review-resolution.md
     blocked_by: []
-  - {id: P1, name: Engineering foundation, status: not_started, blocked_by: []}
+  - id: P1
+    name: Engineering foundation
+    status: in_progress
+    plan: docs/phases/P1-plan.md
+    blocked_by: []
   - {id: P2, name: Universal agent event protocol, status: not_started, blocked_by: [TD-001]}
   - {id: P3, name: Adapter / SDK layer, status: not_started, blocked_by: []}
   - {id: P4, name: Agent state engine, status: not_started, blocked_by: []}
@@ -86,6 +90,13 @@ contracts:
     status: approved
     reviewed_by: [reviewer-a, reviewer-b]
     tag: null
+  - id: phase1-foundation
+    review_record: docs/reviews/phase-1-contract-review.md
+    path: docs/adr/0005-phase-1-foundation-contract.md
+    version: 1.0.0
+    status: approved
+    reviewed_by: [reviewer-a, reviewer-b]
+    tag: null
   - id: event-protocol
     path: null
     version: null
@@ -104,4 +115,12 @@ contracts:
 
 # Active path claims (coordinator records at assignment, releases at integration).
 # Each: {task: AO-P<n>-<seq>, owner: <agent>, paths: [<path prefix>, ...]}
-claims: []
+claims:
+  - {task: AO-P1-001, owner: coordinator, paths: [docs/adr/0005-phase-1-foundation-contract.md, docs/phases/P1-plan.md, backend/pyproject.toml, backend/uv.lock, backend/src/observatory/__init__.py, backend/src/observatory/main.py, backend/src/observatory/core/config.py, backend/src/observatory/core/health.py, backend/tests/unit/test_config.py, backend/tests/unit/test_health.py, .github/workflows/release-tags.yml, scripts/release-tags.py, tests/governance/test_release_tags.py]}
+
+# Annotated tags to be created by .github/workflows/release-tags.yml on main
+# (ADR-0005 §7). Entries stay as the audit record; existing tags are never moved.
+pending_tags:
+  - tag: contract-phase1-foundation-v1.0.0
+    commit: self
+    message: Agent Observatory Phase 1 engineering-foundation contract (ADR-0005) v1.0.0, approved by Reviewer A and Reviewer B.

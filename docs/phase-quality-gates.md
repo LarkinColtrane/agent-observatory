@@ -11,7 +11,7 @@ enforces its consistency with gate reports and the debt register.
 | Phase | Name | Status |
 |---|---|---|
 | P0 | Governance | **closed** — `phase-P0-v1.1.0` → `8ce0ed3` |
-| P1 | Engineering foundation | not_started — unblocked; opens only on explicit owner decision |
+| P1 | Engineering foundation | **in_progress** — opened 2026-10-10 by owner ([plan](phases/P1-plan.md)) |
 | P2 | Universal agent event protocol | not_started |
 | P3 | Adapter / SDK layer | not_started |
 | P4 | Agent state engine | not_started |

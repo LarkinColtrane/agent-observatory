@@ -107,6 +107,14 @@ force push), because the session's git proxy refuses tag pushes. The workflow
 was removed immediately afterwards. It must not be re-added; future tags go
 through the owner or a reviewed release process.
 
+## Tag ruleset (Owner, TD-016)
+
+Settings → Rules → Rulesets → New **tag** ruleset `release-tags`: Active,
+empty bypass list, target tags `phase-*` and `contract-*`, rules **Restrict
+updates** and **Restrict deletions** (leave creation allowed so the
+`release-tags` workflow can create new tags). Tags are then immutable on
+GitHub, not only by policy.
+
 ## Break-glass (review B-26)
 
 The required `governance` check downloads pinned tooling (PyPI packages, the

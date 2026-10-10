@@ -211,3 +211,20 @@ debt:
     recorded: 2026-10-10
     history:
       - 2026-10-10: repaid — owner enabled both; security_and_analysis reports secret_scanning enabled and secret_scanning_push_protection enabled (read 21:22 UTC).
+
+  - id: TD-016
+    title: Release tags are not protected by a tag ruleset
+    description: >
+      phase-* and contract-* tags are immutable by policy and by the
+      release-tags workflow (never moves or deletes), but no GitHub tag
+      ruleset prevents the owner identity — which the agent also acts as —
+      from moving or deleting one through the API (Phase 1 contract review
+      P1A-05). Owner adds the tag ruleset described in
+      docs/repository-settings.md.
+    severity: medium
+    status: open
+    owner: project-owner
+    component: C11
+    blocks: []
+    repayment_trigger: Tag ruleset active with empty bypass, restricting updates and deletions of phase-* and contract-*.
+    recorded: 2026-10-10

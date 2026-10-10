@@ -18,6 +18,17 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from typing import Any, Callable
+
+import yaml
+
+class _IndentedDumper(yaml.SafeDumper):
+    """Indent sequences like the hand-written state file, so text-based
+    fixture edits keep matching after a YAML round-trip."""
+
+    def increase_indent(self, flow: bool = False, indentless: bool = False) -> None:
+        super().increase_indent(flow, False)
+
 
 REPO = Path(__file__).resolve().parents[2]
 REAL_REMOTE = "https://github.com/LarkinColtrane/agent-observatory.git"
@@ -86,6 +97,22 @@ class CheckerCase(unittest.TestCase):
         subprocess.run(["git", "-C", str(self.tmp), "remote", "remove", "origin"], env=GIT_ENV, capture_output=True)
         if dedicated:
             self.git("remote", "add", "origin", REAL_REMOTE)
+
+    def update_state(self, fn: Callable[[dict[str, Any]], None]) -> None:
+        """Edit docs/governance-state.yaml structurally (not by string match),
+        so fixtures do not depend on how the live file is formatted."""
+        st = self.path("docs/governance-state.yaml")
+        data = yaml.safe_load(st.read_text())
+        fn(data)
+        st.write_text(yaml.dump(data, Dumper=_IndentedDumper, sort_keys=False, default_flow_style=False))
+
+    def set_phase(self, pid: str, **fields: Any) -> None:
+        def apply(d: dict[str, Any]) -> None:
+            next(p for p in d["phases"] if p["id"] == pid).update(fields)
+        self.update_state(apply)
+
+    def set_claims(self, claims: list[dict[str, Any]]) -> None:
+        self.update_state(lambda d: d.__setitem__("claims", claims))
 
     def edit(self, rel: str, old: str, new: str, count: int = 1) -> None:
         p = self.path(rel)
@@ -195,14 +222,15 @@ class TestGovernanceState(CheckerCase):
 
     def test_phase_cannot_start_before_predecessor_closed(self) -> None:
         self.edit(self.STATE, "{id: P2, name: Universal agent event protocol, status: not_started", "{id: P2, name: Universal agent event protocol, status: in_progress")
+        self.set_phase("P1", status="not_started")
         self.assertFails(r"phase P2: is 'in_progress' but P1 is not closed")
-        self.edit(self.STATE, "{id: P1, name: Engineering foundation, status: not_started", "{id: P1, name: Engineering foundation, status: in_progress")
+        self.set_phase("P1", status="in_progress")
         self.assertFails(r"more than one phase active")
 
     def test_p1_cannot_start_outside_dedicated_repo(self) -> None:
         self.set_dedicated(False)
         self.make_p1_blocker()
-        self.edit(self.STATE, "{id: P1, name: Engineering foundation, status: not_started", "{id: P1, name: Engineering foundation, status: in_progress")
+        self.set_phase("P1", status="in_progress")
         self.assertFails(r"cannot start while the project is not in its dedicated repository", r"while blocked by open debt TD-006")
 
     def test_closed_with_unrun_gate_item_rejected(self) -> None:
@@ -228,6 +256,8 @@ class TestGovernanceState(CheckerCase):
         st = self.path(self.STATE)
         st.write_text(st.read_text().replace("    status: approved\n    reviewed_by: [reviewer-a, reviewer-b]",
                                              "    status: in_review\n    reviewed_by: []"))
+        # Pending contract tags are invalid without approval; the pre-verdict state has none.
+        self.update_state(lambda d: d.__setitem__("pending_tags", []))
         self.set_gate_row(10, "no", "not_run")
 
     def record_verdicts(self, a: str, b: str) -> None:
@@ -252,9 +282,7 @@ class TestGovernanceState(CheckerCase):
         block = text[start:end]
         self.assertIn("    status: open\n", block, f"fixture drift: {debt_id} not open")
         reg.write_text(text[:start] + re.sub(r"(?m)^    blocks: \[.*\]$", "    blocks: [P1]", block, count=1) + text[end:])
-        st = self.path(self.STATE)
-        st.write_text(re.sub(r"(\{id: P1, name: Engineering foundation, status: \w+, blocked_by: )\[[^\]]*\]",
-                             rf"\g<1>[{debt_id if recorded_in_state else ''}]", st.read_text(), count=1))
+        self.set_phase("P1", blocked_by=[debt_id] if recorded_in_state else [])
 
     def reopen_p0(self) -> None:
         """Return P0 to gate_review (tag removed, item 12 not_run), so closure
@@ -412,7 +440,7 @@ class TestGovernanceState(CheckerCase):
 
     def test_blocked_by_repaid_or_unknown_debt(self) -> None:
         self.make_p1_blocker()
-        self.edit(self.STATE, "blocked_by: [TD-006]}", "blocked_by: [TD-006, TD-003, TD-999]}")
+        self.set_phase("P1", blocked_by=["TD-006", "TD-003", "TD-999"])
         self.assertFails(r"blocked_by 'TD-003' is not open debt", r"unknown debt 'TD-999'")
 
     def test_event_protocol_cannot_be_drafted_before_p2(self) -> None:
@@ -476,24 +504,85 @@ class TestGovernanceState(CheckerCase):
         self.edit(self.STATE, "    status: not_drafted\n    not_before_phase: P2", "    status: draft")
         self.assertFails(r"contract event-protocol: not_before_phase must be P2")
 
+    def set_p1_contract(self, status: str, verdicts: bool) -> None:
+        """Set the Phase 1 contract's review state explicitly (independent of the live repo)."""
+        def apply(d: dict[str, Any]) -> None:
+            c = next(c for c in d["contracts"] if c["id"] == "phase1-foundation")
+            approved = status in {"approved", "frozen"}
+            c.update(status=status, reviewed_by=["reviewer-a", "reviewer-b"] if approved else [])
+        self.update_state(apply)
+        rec = self.path("docs/reviews/phase-1-contract-review.md")
+        head = rec.read_text().split("<!-- final-verdicts -->")[0] + "<!-- final-verdicts -->\n"
+        rec.write_text(head + ("- **Reviewer A final outcome:** APPROVE\n- **Reviewer B final outcome:** APPROVE\n"
+                               if verdicts else ""))
+
+    def approve_p1_contract(self, verdicts: bool = True) -> None:
+        self.set_p1_contract("approved", verdicts)
+
+    def set_pending(self, *entries: dict[str, Any]) -> None:
+        self.update_state(lambda d: d.__setitem__("pending_tags", list(entries)))
+
+    def test_pending_contract_tag_requires_approval(self) -> None:
+        # Review P1A-05: no tag for a contract that is not approved by both reviewers.
+        self.set_p1_contract("in_review", verdicts=False)
+        self.set_pending({"tag": "contract-phase1-foundation-v1.0.0", "commit": "self", "message": "m"})
+        self.assertFails(r"contract phase1-foundation v1\.0\.0 is not approved")
+
+    def test_pending_contract_tag_requires_verdicts(self) -> None:
+        self.approve_p1_contract(verdicts=False)
+        self.set_pending({"tag": "contract-phase1-foundation-v1.0.0", "commit": "self", "message": "m"})
+        self.assertFails(r"pending_tags\[0\] contract-phase1-foundation-v1\.0\.0: no recorded final verdict",
+                         r"contract phase1-foundation: claims review but no recorded final verdict")
+
+    def test_pending_contract_tag_version_must_match(self) -> None:
+        self.approve_p1_contract()
+        self.set_pending({"tag": "contract-phase1-foundation-v2.0.0", "commit": "self", "message": "m"})
+        self.assertFails(r"contract phase1-foundation v2\.0\.0 is not approved")
+
+    def test_pending_tag_shape_and_phase_rules(self) -> None:
+        self.set_pending({"tag": "refs/heads/main", "commit": "self", "message": "m"},
+                         {"tag": "contract-nope-v1.0.0", "commit": "HEAD", "message": ""},
+                         {"tag": "phase-P1-v1.0.0", "commit": "self", "message": "m"})
+        self.assertFails(r"pending_tags\[0\]: invalid tag name 'refs/heads/main'",
+                         r"pending_tags\[1\] contract-nope-v1\.0\.0: commit must be a 40-hex sha or 'self'",
+                         r"pending_tags\[1\] contract-nope-v1\.0\.0: message must be non-empty",
+                         r"unknown contract 'nope'",
+                         r"pending_tags\[2\] phase-P1-v1\.0\.0: phase P1 is not in gate_review/closed")
+
+    def test_existing_tag_entry_is_an_audit_record(self) -> None:
+        # Review P1B-10: once created, a kept entry must not fail CI when the
+        # contract later changes (e.g. back to in_review for a v2 draft).
+        self.set_pending({"tag": "contract-phase1-foundation-v1.0.0", "commit": "self", "message": "m"})
+        self.commit("entry")
+        self.git("tag", "-a", "contract-phase1-foundation-v1.0.0", "-m", "m")
+        res = self.run_checker()
+        self.assertEqual(res.returncode, 0, res.stdout)
+
+    def test_pending_contract_tag_for_approved_contract_passes(self) -> None:
+        # Control: the rule is satisfiable once both verdicts are recorded.
+        self.approve_p1_contract()
+        self.set_pending({"tag": "contract-phase1-foundation-v1.0.0", "commit": "self", "message": "m"})
+        res = self.run_checker()
+        self.assertEqual(res.returncode, 0, res.stdout)
+
     def test_overlapping_claims(self) -> None:
-        self.edit(self.STATE, "claims: []", "claims:\n  - {task: AO-P1-001, owner: impl-1, paths: [backend/]}\n  - {task: AO-P1-002, owner: impl-2, paths: [backend/src/ingest]}")
+        self.set_claims([{"task": "AO-P1-001", "owner": "impl-1", "paths": ["backend/"]},
+                         {"task": "AO-P1-002", "owner": "impl-2", "paths": ["backend/src/ingest"]}])
         self.assertFails(r"claims: 'backend/src/ingest' \(AO-P1-002\) overlaps 'backend' \(AO-P1-001\)")
 
     def test_claim_overlap_is_case_insensitive(self) -> None:
-        self.edit(self.STATE, "claims: []", "claims:\n"
-                  "  - {task: AO-P1-001, owner: impl-1, paths: [Core/ingest/]}\n"
-                  "  - {task: AO-P1-002, owner: impl-2, paths: [./core/ingest]}")
+        self.set_claims([{"task": "AO-P1-001", "owner": "impl-1", "paths": ["Core/ingest/"]},
+                         {"task": "AO-P1-002", "owner": "impl-2", "paths": ["./core/ingest"]}])
         self.assertFails(r"'\./core/ingest' \(AO-P1-002\) overlaps 'core/ingest' \(AO-P1-001\)")
 
     def test_claim_glob_dotslash_duplicate_and_phase(self) -> None:
         # Regression for B-18 / N-05.
-        self.edit(self.STATE, "claims: []", "claims:\n"
-                  "  - {task: AO-P1-001, owner: impl-1, paths: ['backend/**']}\n"
-                  "  - {task: AO-P1-002, owner: impl-2, paths: [frontend]}\n"
-                  "  - {task: AO-P1-003, owner: impl-3, paths: [./frontend/app/]}\n"
-                  "  - {task: AO-P1-003, owner: impl-4, paths: [docs/x]}\n"
-                  "  - {task: AO-P1-004, owner: impl-5, paths: [../outside]}")
+        self.set_phase("P1", status="not_started")
+        self.set_claims([{"task": "AO-P1-001", "owner": "impl-1", "paths": ["backend/**"]},
+                         {"task": "AO-P1-002", "owner": "impl-2", "paths": ["frontend"]},
+                         {"task": "AO-P1-003", "owner": "impl-3", "paths": ["./frontend/app/"]},
+                         {"task": "AO-P1-003", "owner": "impl-4", "paths": ["docs/x"]},
+                         {"task": "AO-P1-004", "owner": "impl-5", "paths": ["../outside"]}])
         self.assertFails(
             r"'backend/\*\*' uses glob characters",
             r"'./frontend/app/' \(AO-P1-003\) overlaps 'frontend' \(AO-P1-002\)",

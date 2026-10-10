@@ -89,6 +89,8 @@ VERDICT = re.compile(
 )
 VERDICT_MARKER = "<!-- final-verdicts -->"
 REVIEWER_KEYS = {"Reviewer A": "reviewer-a", "Reviewer B": "reviewer-b"}
+PENDING_TAG = re.compile(r"^(?:phase-(P\d+)|contract-([a-z0-9-]+?))-v(\d+\.\d+\.\d+)$")
+PENDING_SHA = re.compile(r"^(?:[0-9a-f]{40}|self)$")
 CLAIM_TASK = re.compile(r"^AO-(P\d+)-\d{3}$")
 GLOB_CHARS = set("*?[]{}")
 REQUIRED_FREEZE_REVIEWERS = {"reviewer-a", "reviewer-b"}
@@ -471,6 +473,41 @@ def check_state(ctx: Ctx) -> None:
                 ctx.err(f"contract {cid}: frozen tag must be 'contract-{cid}-v{c.get('version')}'")
             elif not _annotated_tag_exists(ctx, tag):
                 ctx.err(f"contract {cid}: frozen tag '{tag}' does not exist as an annotated git tag")
+
+    # -- pending tags (created by the release-tags workflow, ADR-0005 §7)
+    pending = state.get("pending_tags", [])
+    if not isinstance(pending, list):
+        ctx.err("governance-state.yaml: 'pending_tags' must be a list")
+        pending = []
+    for i, entry in enumerate(pending):
+        if not isinstance(entry, dict):
+            ctx.err(f"pending_tags[{i}]: must be a mapping")
+            continue
+        tag, commit = entry.get("tag"), entry.get("commit")
+        m = PENDING_TAG.match(tag) if isinstance(tag, str) else None
+        if not m:
+            ctx.err(f"pending_tags[{i}]: invalid tag name {tag!r}")
+            continue
+        if not isinstance(commit, str) or not PENDING_SHA.match(commit):
+            ctx.err(f"pending_tags[{i}] {tag}: commit must be a 40-hex sha or 'self'")
+        if not _text(entry.get("message")):
+            ctx.err(f"pending_tags[{i}] {tag}: message must be non-empty")
+        phase_id, contract_id, version = m.groups()
+        if _annotated_tag_exists(ctx, tag):
+            continue  # already created: the entry is now an audit record (review P1B-10)
+        if phase_id is not None:
+            if status_of.get(phase_id) not in {"gate_review", "closed"}:
+                ctx.err(f"pending_tags[{i}] {tag}: phase {phase_id} is not in gate_review/closed")
+        else:
+            c = by_id.get(contract_id)
+            if c is None:
+                ctx.err(f"pending_tags[{i}] {tag}: unknown contract '{contract_id}'")
+            elif c.get("version") != version or c.get("status") not in {"approved", "frozen"}:
+                ctx.err(f"pending_tags[{i}] {tag}: contract {contract_id} v{version} is not approved")
+            else:
+                reason = _approved_by_both(ctx, c.get("review_record"))
+                if reason:
+                    ctx.err(f"pending_tags[{i}] {tag}: {reason}")
 
     # -- claims
     claims = state.get("claims")
