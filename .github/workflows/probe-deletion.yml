@@ -21,6 +21,7 @@ jobs:
           fetch-depth: 1
       - name: Attempt to delete protection-probe (must be rejected)
         run: |
+          set +e   # the default shell uses -e; the push is EXPECTED to fail
           set -uo pipefail
           before="$(git ls-remote origin refs/heads/protection-probe | cut -f1)"
           echo "protection-probe before: $before"
