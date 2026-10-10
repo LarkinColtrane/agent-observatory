@@ -1,6 +1,6 @@
 # Repository settings — `LarkinColtrane/agent-observatory`
 
-Status: **partially applied** (TD-004). Last verified: 2026-10-10.
+Status: **applied and behaviourally verified** (TD-004 repaid). Last verified: 2026-10-10 20:10 UTC — evidence in [phases/P0-public-closure.md](phases/P0-public-closure.md).
 
 The agent cannot change repository settings. Re-tried 2026-10-10 through
 every legitimate mechanism available to the session; each was refused:
@@ -24,18 +24,23 @@ the installing user, so this is not something the owner can grant. The owner
 applies the items marked **Owner** in the GitHub web UI (about 5 minutes);
 the agent then verifies them (see "Verification").
 
-## Current state (read via API, 2026-10-10)
+## Current state (read via API, 2026-10-10 20:04 UTC)
 
 | Setting | Value | Source |
 |---|---|---|
-| Visibility | **private** | created by owner; verified via API |
-| Default branch | `main` | verified via API |
-| Wiki | disabled | verified via API |
-| Issues | enabled (kept) | verified via API |
-| Projects | enabled → **Owner: disable** (unused) | |
-| Merge methods | merge, squash, rebase all enabled → **Owner: squash only** | |
-| Auto-delete head branches | off → **Owner: enable** | |
-| Branch protection / rulesets | none (`branches/main` reports `protected: false`) → **Owner: ruleset below** | |
+| Visibility | **public** | API |
+| Default branch | `main` | API |
+| Wiki / Projects | disabled / disabled | API |
+| Issues | enabled | API |
+| Merge methods | **squash only** | API |
+| Auto-delete head branches | **on** | API |
+| Ruleset `main-protection` | **active**, empty bypass, `main` + `protection-probe` — verified behaviourally | rulesets API + probes |
+| Dependabot alerts, dependency graph, Actions default token, secret scanning, push protection | NOT_VERIFIABLE_FROM_SESSION (403); a Dependabot dependency-graph run was observed | — |
+
+Owner follow-ups (optional, non-blocking): in the ruleset, restrict allowed
+merge methods to squash (the repository setting already enforces it) and turn
+on "dismiss stale approvals" so it takes effect if approvals are ever raised
+above 0.
 
 ## Policy decisions
 

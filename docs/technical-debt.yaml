@@ -79,7 +79,7 @@ debt:
       or rulesets ("Resource not accessible by integration", HTTP 403). The
       owner must apply the settings listed in docs/repository-settings.md.
     severity: high
-    status: open
+    status: repaid
     owner: project-owner
     component: C11
     blocks: [P1]
@@ -89,6 +89,7 @@ debt:
       - 2026-10-10: repository created and migrated; settings/protection writes confirmed impossible for the agent (proxy policy + missing Administration permission).
       - 2026-10-10: verification method changed to a probe branch under the same ruleset, because the readable API cannot show admin enforcement, force-push or deletion settings (post-migration review PM-02).
       - 2026-10-10: owner authorized automation; re-tried REST (settings, rulesets, branch protection, vulnerability alerts, Actions permissions), GraphQL and gh CLI — all refused by the session proxy or unavailable; the Claude GitHub App token lacks Administration. Remains open and blocking P1 until the owner applies the ruleset and the probe-branch verification passes.
+      - 2026-10-10: repaid — repository made public by the owner (rulesets enforce on GitHub Free for public repos). Ruleset main-protection (id 24851582) active, bypass list empty (current_user_can_bypass=never), targets ~DEFAULT_BRANCH + protection-probe; rules deletion, non_fast_forward, pull_request (0 approvals, thread resolution), required_status_checks governance (integration 15368 = GitHub Actions, strict). Behavioural evidence on protection-probe only — direct push and force push from the agent identity rejected ("push declined due to repository rule violations"); deletion via the Actions token rejected ("GH013 … Cannot delete this branch"); branch unchanged at 254e400; main never probed; evidence in docs/phases/P0-public-closure.md.
 
   - id: TD-005
     title: Secret-scan script pinned for linux x86_64 only
@@ -136,5 +137,57 @@ debt:
     owner: coordinator
     component: C12
     blocks: []
-    repayment_trigger: Repaid together with TD-004 (branch protection in the dedicated repository).
+    repayment_trigger: A second reviewer identity exists and the ruleset requires 1 approval (plus Code Owner review) on governance paths.
+    recorded: 2026-10-10
+    history:
+      - 2026-10-10: partially mitigated — main is now protected (PR + governance check required, no direct or force pushes), so verdict records can only change through a reviewed, CI-checked PR. Still open because, with 0 required approvals and agents acting as the owner identity, GitHub does not authenticate who wrote a verdict, and the PR's own checker copy runs. Trigger changed from "with TD-004" because TD-004's repayment does not by itself authenticate verdicts.
+
+  - id: TD-008
+    title: No license — publication terms undecided
+    description: >
+      The repository is public without a LICENSE file, so by default no one
+      has rights to use, modify or redistribute the content (GitHub's terms
+      only allow viewing and forking on GitHub). Choosing a license is an
+      owner decision; the agent must not add one without it.
+    severity: medium
+    status: open
+    owner: project-owner
+    component: C12
+    blocks: []
+    repayment_trigger: Owner chooses a license (or records an explicit decision to remain unlicensed).
+    recorded: 2026-10-10
+
+  - id: TD-009
+    title: Public-facing repository documents missing; public metadata notes
+    description: >
+      No root README.md, SECURITY.md (vulnerability reporting) or
+      CONTRIBUTING.md; docs/README.md is the only index. Also recorded at
+      publication: the Claude Code session identifiers in the
+      "Claude-Session:" trailer of every commit message are now public
+      metadata (links require the owner's Claude login; not secrets; not
+      removed, because that would require rewriting published history and
+      moving the Phase 0 tag); "Quant Autonomy" is named in
+      development-operating-contract.md and assumptions.yaml (owner to
+      decide whether to keep); the phase-P0-v1.1.0 tag object is unsigned
+      (created by the Actions bot; the tagged commit is verified).
+    severity: low
+    status: open
+    owner: coordinator
+    component: C12
+    blocks: []
+    repayment_trigger: Root README, SECURITY.md (with private vulnerability reporting) and CONTRIBUTING.md added via reviewed PR; owner decision on the project-name mention recorded.
+    recorded: 2026-10-10
+
+  - id: TD-010
+    title: Pinned GitHub Actions target deprecated Node.js 20
+    description: >
+      actions/checkout v4.2.2 and actions/setup-python v5.4.0 run under a
+      Node.js 20 deprecation warning (forced onto Node 24). Bump to current
+      pinned SHAs (at least two weeks old) through a reviewed PR.
+    severity: low
+    status: open
+    owner: coordinator
+    component: C11
+    blocks: []
+    repayment_trigger: Pinned actions updated; CI runs without the deprecation warning.
     recorded: 2026-10-10

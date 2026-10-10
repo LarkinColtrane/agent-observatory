@@ -12,7 +12,7 @@ repository:
   required_name: agent-observatory
   required_visibility: private
   current_location: >
-    github.com/LarkinColtrane/agent-observatory (private), default branch main.
+    github.com/LarkinColtrane/agent-observatory (public since 2026-10-10), default branch main.
     Migration provenance: docs/migration-provenance.md.
 
 # Phase statuses: not_started | in_progress | gate_review | closed
@@ -27,7 +27,7 @@ phases:
     gate_tag: phase-P0-v1.1.0           # annotated, -> 8ce0ed3; published 2026-10-10 via owner-authorized bootstrap workflow
     review_record: docs/reviews/pre-phase-1-review-resolution.md
     blocked_by: []
-  - {id: P1, name: Engineering foundation, status: not_started, blocked_by: [TD-004]}
+  - {id: P1, name: Engineering foundation, status: not_started, blocked_by: []}
   - {id: P2, name: Universal agent event protocol, status: not_started, blocked_by: [TD-001]}
   - {id: P3, name: Adapter / SDK layer, status: not_started, blocked_by: []}
   - {id: P4, name: Agent state engine, status: not_started, blocked_by: []}
