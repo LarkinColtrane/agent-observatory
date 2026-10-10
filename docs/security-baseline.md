@@ -30,7 +30,9 @@ adapter as a potential source of hostile or sensitive input.
     and all reachable history blobs (a backstop, **not** a full scanner);
   - `scripts/secret-scan.sh`: pinned, checksum-verified gitleaks over the full
     history of all refs — this is the authoritative scan for L3 item 8 and
-    before any repository migration.
+    before any repository migration. Gitleaks does not scan merge-commit
+    diffs; the checker backstop covers every blob reachable from any ref,
+    including merges.
 - **If a secret leaks:** follow the secret-incident procedure in
   [rollback-policy.md](rollback-policy.md): rotate → record (no value) in
   [security-incident-log.md](security-incident-log.md) → purge → re-scan.

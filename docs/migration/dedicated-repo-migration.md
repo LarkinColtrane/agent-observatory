@@ -81,7 +81,10 @@ require a pull request with 1 approval and CODEOWNERS review, require the
 
 After the push, update `docs/governance-state.yaml` (`repository.dedicated:
 true`, remove TD-002/TD-004 from `blocked_by` once repaid), re-run the P0 gate
-items 5, 8, 11, 12 in the new repository, then:
+items 5, 8, 11 in the new repository — on a branch, or with
+`SKIP=no-commit-to-branch pre-commit run --all-files` on `main` (the hook
+forbids commits to `main` by design) — then follow the closure sequence in
+`docs/phase-quality-gates.md`:
 
 ```sh
 git tag -a phase-P0-v1.1.0 -m "agent-observatory Phase 0 governance baseline (reviewed)"

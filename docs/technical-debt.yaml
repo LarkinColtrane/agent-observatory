@@ -107,3 +107,20 @@ debt:
     blocks: []
     repayment_trigger: When the task board/handoff storage is chosen in Phase 1.
     recorded: 2026-10-10
+
+  - id: TD-007
+    title: Reviewer verdict lines are not authenticated
+    description: >
+      The checker requires approving final-verdict lines from both reviewers
+      before review can be recorded, but it cannot tell who wrote a line; a
+      pasted verdict passes (Reviewer A, verification round 2). Mitigation
+      now: every verdict line links to the reviewer's own report file.
+      Enforcement requires CODEOWNERS + branch protection so verdict/record
+      changes need the reviewer's approval (TD-004).
+    severity: low
+    status: open
+    owner: coordinator
+    component: C12
+    blocks: []
+    repayment_trigger: Repaid together with TD-004 (branch protection in the dedicated repository).
+    recorded: 2026-10-10

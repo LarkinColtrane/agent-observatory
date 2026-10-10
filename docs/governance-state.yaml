@@ -8,6 +8,7 @@ project: agent-observatory
 
 repository:
   dedicated: false                      # TD-002 — flips to true only after verified migration
+  required_owner: LarkinColtrane
   required_name: agent-observatory
   required_visibility: private
   current_location: >

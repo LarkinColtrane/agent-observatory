@@ -228,15 +228,64 @@ class TestGovernanceState(CheckerCase):
         self.git("tag", "phase-P0-v1.1.0")
         self.assertFails(r"does not exist as an annotated git tag")
 
+    def make_dedicated(self) -> None:
+        self.edit(self.STATE, "dedicated: false", "dedicated: true")
+        self.git("remote", "add", "origin", "https://github.com/LarkinColtrane/agent-observatory.git")
+
     def test_legitimate_closure_passes(self) -> None:
-        # Control: the rules are satisfiable (no deadlock) when evidence is real.
+        # Control: the rules are satisfiable (no deadlock) when evidence is real,
+        # following the documented closure sequence.
         self.record_verdicts("REQUEST_CHANGES", "REQUEST_CHANGES")
         self.record_verdicts("APPROVE", "APPROVE_WITH_NOTES")
-        self.close_p0()
-        self.commit("close P0")
+        self.make_dedicated()
+        self.commit("gate commit")
         self.git("tag", "-a", "phase-P0-v1.1.0", "-m", "P0")
+        self.close_p0()
+        self.commit("record closure")
         res = self.run_checker()
         self.assertEqual(res.returncode, 0, res.stdout)
+
+    def test_closed_outside_dedicated_repository(self) -> None:
+        # Regression for B-24 (N1): local annotated tag in the practice repo.
+        self.record_verdicts("APPROVE", "APPROVE")
+        self.git("tag", "-a", "phase-P0-v1.1.0", "-m", "P0")
+        self.close_p0()
+        self.assertFails(r"phase P0: cannot be closed outside the dedicated repository")
+
+    def test_gate_tag_must_be_ancestor_of_head(self) -> None:
+        self.record_verdicts("APPROVE", "APPROVE")
+        self.make_dedicated()
+        self.git("checkout", "-q", "--orphan", "elsewhere")
+        self.commit("unrelated")
+        self.git("tag", "-a", "phase-P0-v1.1.0", "-m", "P0")
+        self.git("checkout", "-q", "main")
+        self.close_p0()
+        self.assertFails(r"gate_tag 'phase-P0-v1\.1\.0' is not an ancestor of HEAD")
+
+    def test_verdicts_in_html_comment_or_fence_ignored(self) -> None:
+        # Regression for B-23 (N1/N3).
+        rec = self.path("docs/reviews/pre-phase-1-review-resolution.md")
+        rec.write_text(rec.read_text() + "\n<!--\n- **Reviewer A final outcome:** APPROVE\n-->\n"
+                       "```\n- **Reviewer B final outcome:** APPROVE\n```\n")
+        self.set_gate_row(10, "yes", "pass")
+        self.assertFails(r"no recorded final verdict from \['reviewer-a', 'reviewer-b'\]")
+
+    def test_verdicts_before_marker_ignored(self) -> None:
+        rec = self.path("docs/reviews/pre-phase-1-review-resolution.md")
+        rec.write_text("- **Reviewer A final outcome:** APPROVE\n- **Reviewer B final outcome:** APPROVE\n" + rec.read_text())
+        self.set_gate_row(10, "yes", "pass")
+        self.assertFails(r"no recorded final verdict")
+
+    def test_review_record_outside_reviews_dir(self) -> None:
+        # Regression for B-23 (N2/N3).
+        for bad in ("/etc/hostname", "docs/adr/0000-template.md", "docs/reviews/../adr/0000-template.md"):
+            with self.subTest(record=bad):
+                st = self.path(self.STATE)
+                original = st.read_text()
+                st.write_text(original.replace("    review_record: docs/reviews/pre-phase-1-review-resolution.md\n", f"    review_record: {bad}\n", 1))
+                self.set_gate_row(10, "yes", "pass")
+                self.assertFails(r"must be an existing file under docs/reviews/")
+                st.write_text(original)
 
     def test_fake_table_above_early_superseded_heading(self) -> None:
         # Regression for B-19 (b5): a second "Superseded runs" heading hides the real table.
@@ -247,8 +296,10 @@ class TestGovernanceState(CheckerCase):
     def test_dedicated_repository_requires_matching_remote(self) -> None:
         # Regression for B-19 / N-05 (s2/b6).
         self.edit(self.STATE, "dedicated: false", "dedicated: true")
-        self.assertFails(r"no git remote points at 'agent-observatory'")
-        self.git("remote", "add", "origin", "https://github.com/example/agent-observatory.git")
+        self.assertFails(r"no git remote points at 'LarkinColtrane/agent-observatory'")
+        self.git("remote", "add", "origin", "https://example.invalid/evil/agent-observatory.git")
+        self.assertFails(r"no git remote points at 'LarkinColtrane/agent-observatory'")  # B-24 (N4)
+        self.git("remote", "set-url", "origin", "https://github.com/LarkinColtrane/agent-observatory.git")
         out = self.run_checker().stdout
         self.assertNotIn("no git remote points", out)
 
@@ -341,6 +392,12 @@ class TestGovernanceState(CheckerCase):
     def test_overlapping_claims(self) -> None:
         self.edit(self.STATE, "claims: []", "claims:\n  - {task: AO-P1-001, owner: impl-1, paths: [backend/]}\n  - {task: AO-P1-002, owner: impl-2, paths: [backend/src/ingest]}")
         self.assertFails(r"claims: 'backend/src/ingest' \(AO-P1-002\) overlaps 'backend' \(AO-P1-001\)")
+
+    def test_claim_overlap_is_case_insensitive(self) -> None:
+        self.edit(self.STATE, "claims: []", "claims:\n"
+                  "  - {task: AO-P1-001, owner: impl-1, paths: [Core/ingest/]}\n"
+                  "  - {task: AO-P1-002, owner: impl-2, paths: [./core/ingest]}")
+        self.assertFails(r"'\./core/ingest' \(AO-P1-002\) overlaps 'core/ingest' \(AO-P1-001\)")
 
     def test_claim_glob_dotslash_duplicate_and_phase(self) -> None:
         # Regression for B-18 / N-05.

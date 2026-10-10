@@ -87,6 +87,7 @@ VERDICT = re.compile(
     r"^- \*\*(Reviewer [AB]) final outcome:\*\*\s*(APPROVE_WITH_NOTES|APPROVE|REQUEST_CHANGES|BLOCK)\b",
     re.MULTILINE,
 )
+VERDICT_MARKER = "<!-- final-verdicts -->"
 REVIEWER_KEYS = {"Reviewer A": "reviewer-a", "Reviewer B": "reviewer-b"}
 CLAIM_TASK = re.compile(r"^AO-(P\d+)-\d{3}$")
 GLOB_CHARS = set("*?[]{}")
@@ -274,10 +275,21 @@ def _annotated_tag_exists(ctx: Ctx, tag: str) -> bool:
 def _approved_by_both(ctx: Ctx, record: Any) -> str | None:
     """Return None if `record` holds approving final verdicts from both reviewers,
     else a reason. The last recorded verdict per reviewer wins."""
-    if not _text(record) or not (ctx.root / record).is_file():
-        return f"review_record '{record}' missing"
+    # Consistency check, not authenticity: who wrote a verdict line is
+    # enforced by CODEOWNERS + branch protection (TD-004, TD-007).
+    if not _text(record):
+        return "review_record missing"
+    reviews_dir = (ctx.docs / "reviews").resolve()
+    path = (ctx.root / record).resolve()
+    if reviews_dir not in path.parents or not path.is_file():
+        return f"review_record '{record}' must be an existing file under docs/reviews/"
+    text = path.read_text(encoding="utf-8", errors="replace")
+    if VERDICT_MARKER not in text:
+        return f"review_record '{record}' has no '{VERDICT_MARKER}' section"
+    section = text.split(VERDICT_MARKER, 1)[1]
+    section = FENCE.sub("", re.sub(r"<!--.*?-->", "", section, flags=re.DOTALL))
     latest: dict[str, str] = {}
-    for who, outcome in VERDICT.findall((ctx.root / record).read_text(encoding="utf-8", errors="replace")):
+    for who, outcome in VERDICT.findall(section):
         latest[REVIEWER_KEYS[who]] = outcome
     missing = sorted(REQUIRED_FREEZE_REVIEWERS - latest.keys())
     if missing:
@@ -347,14 +359,16 @@ def check_state(ctx: Ctx) -> None:
     elif not repo["dedicated"] and status_of.get("P1") not in (None, "not_started"):
         ctx.err("phase P1: cannot start while the project is not in its dedicated repository")
     elif repo["dedicated"]:
-        name = repo.get("required_name")
+        name = f"{repo.get('required_owner')}/{repo.get('required_name')}"
         try:
             remotes = subprocess.run(
                 ["git", "-C", str(ctx.root), "remote", "-v"], capture_output=True, text=True, check=True
             ).stdout
         except (subprocess.CalledProcessError, FileNotFoundError):
             remotes = ""
-        if not _text(name) or not re.search(rf"[/:]{re.escape(name)}(?:\.git)?\s", remotes):
+        if not (_text(repo.get("required_owner")) and _text(repo.get("required_name"))) or not re.search(
+            rf"(?:github\.com[/:]){re.escape(name)}(?:\.git)?\s", remotes
+        ):
             ctx.err(f"repository.dedicated is true but no git remote points at '{name}'")
 
     for p in phases:
@@ -402,6 +416,13 @@ def check_state(ctx: Ctx) -> None:
                     ctx.err(f"phase {pid}: closed without a gate_tag of the form phase-{pid}-v<semver>")
                 elif not _annotated_tag_exists(ctx, tag):
                     ctx.err(f"phase {pid}: gate_tag '{tag}' does not exist as an annotated git tag")
+                elif subprocess.run(
+                    ["git", "-C", str(ctx.root), "merge-base", "--is-ancestor", f"refs/tags/{tag}^{{commit}}", "HEAD"],
+                    capture_output=True,
+                ).returncode != 0:
+                    ctx.err(f"phase {pid}: gate_tag '{tag}' is not an ancestor of HEAD")
+                if not (isinstance(repo, dict) and repo.get("dedicated") is True):
+                    ctx.err(f"phase {pid}: cannot be closed outside the dedicated repository (ADR-0004)")
 
     # -- contracts
     contracts = state.get("contracts")
@@ -480,6 +501,7 @@ def check_state(ctx: Ctx) -> None:
             if raw.startswith("/") or norm in {"", "."} or norm == ".." or norm.startswith("../"):
                 ctx.err(f"claim {task}: '{raw}' must be a relative path inside the repository")
                 continue
+            norm = norm.casefold()  # case-insensitive filesystems (review note A, round 2)
             for other_task, other in owned:
                 if norm == other or norm.startswith(other + "/") or other.startswith(norm + "/"):
                     ctx.err(f"claims: '{path}' ({c['task']}) overlaps '{other}' ({other_task})")

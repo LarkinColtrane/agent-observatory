@@ -144,4 +144,7 @@ Any change to a governance document requires an ADR when it relaxes a rule,
 plus independent review with Reviewer A and/or B sign-off; changes to this
 contract require both. This contract's version is bumped (SemVer: major = rule
 removed or weakened; minor = rule added; patch = clarification).
-Branch protection and CODEOWNERS enforce this in the dedicated repository.
+Branch protection and CODEOWNERS enforce this in the dedicated repository
+(TD-004). The governance checker verifies that recorded reviewer verdicts are
+*consistent* with the recorded state; it cannot verify *who wrote* them
+(TD-007).
