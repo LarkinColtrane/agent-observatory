@@ -58,6 +58,10 @@ class CheckerCase(unittest.TestCase):
         if re.search(r"^\s*dedicated:\s*true", (self.tmp / "docs/governance-state.yaml").read_text(), re.M):
             self.git("remote", "add", "origin", REAL_REMOTE)
         self.commit("baseline")
+        # Mirror the real repository's recorded P0 gate tag (annotated) when P0 is closed.
+        m = re.search(r"^\s*gate_tag:\s*(phase-P0-v[\d.]+)", (self.tmp / "docs/governance-state.yaml").read_text(), re.M)
+        if m:
+            self.git("tag", "-a", m.group(1), "-m", "mirror of the real gate tag")
 
     def tearDown(self) -> None:
         shutil.rmtree(self.tmp, ignore_errors=True)
@@ -191,7 +195,9 @@ class TestGovernanceState(CheckerCase):
 
     def test_phase_cannot_start_before_predecessor_closed(self) -> None:
         self.edit(self.STATE, "{id: P2, name: Universal agent event protocol, status: not_started", "{id: P2, name: Universal agent event protocol, status: in_progress")
-        self.assertFails(r"phase P2: is 'in_progress' but P1 is not closed", r"more than one phase active")
+        self.assertFails(r"phase P2: is 'in_progress' but P1 is not closed")
+        self.edit(self.STATE, "{id: P1, name: Engineering foundation, status: not_started", "{id: P1, name: Engineering foundation, status: in_progress")
+        self.assertFails(r"more than one phase active")
 
     def test_p1_cannot_start_outside_dedicated_repo(self) -> None:
         self.set_dedicated(False)
@@ -200,11 +206,13 @@ class TestGovernanceState(CheckerCase):
 
     def test_closed_with_unrun_gate_item_rejected(self) -> None:
         # Regression for review findings B-01 / A-01 ("closed with exception").
+        self.reopen_p0()
         self.edit(self.STATE, "    status: gate_review\n", "    status: closed\n")
         self.edit(self.STATE, "gate_tag: null", "gate_tag: phase-P0-v1.1.0")
         self.assertFails(r"phase P0: closed but gate item 12 is 'not_run'")
 
     def test_closed_without_tag_rejected(self) -> None:
+        self.reopen_p0()
         self.edit(self.STATE, "    status: gate_review\n", "    status: closed\n")
         self.assertFails(r"phase P0: closed without a gate_tag of the form phase-P0-v<semver>")
 
@@ -232,6 +240,15 @@ class TestGovernanceState(CheckerCase):
         self.assertEqual(n, 1, f"fixture drift: gate row {item}")
         report.write_text(new)
 
+    def reopen_p0(self) -> None:
+        """Return P0 to gate_review (tag removed, item 12 not_run), so closure
+        tests exercise the path to closure regardless of the real state."""
+        st = self.path(self.STATE)
+        text = st.read_text().replace("    status: closed\n    plan: docs/phases/P0-plan.md", "    status: gate_review\n    plan: docs/phases/P0-plan.md", 1)
+        st.write_text(re.sub(r"^(\s*gate_tag:).*$", r"\1 null", text, count=1, flags=re.M))
+        self.set_gate_row(12, "no", "not_run")
+        subprocess.run(["git", "-C", str(self.tmp), "tag", "-d", "phase-P0-v1.1.0"], env=GIT_ENV, capture_output=True)
+
     def close_p0(self, tag: str = "phase-P0-v1.1.0") -> None:
         self.set_gate_row(10, "yes", "pass")
         self.set_gate_row(12, "yes", "pass")
@@ -246,12 +263,14 @@ class TestGovernanceState(CheckerCase):
 
     def test_closed_with_nonexistent_tag(self) -> None:
         # Regression for B-19 / N-05 (s1): self-attested closure.
+        self.reopen_p0()
         self.pending_review()
         self.record_verdicts("APPROVE", "APPROVE")
         self.close_p0()
         self.assertFails(r"gate_tag 'phase-P0-v1\.1\.0' does not exist as an annotated git tag")
 
     def test_closed_with_lightweight_tag(self) -> None:
+        self.reopen_p0()
         self.pending_review()
         self.record_verdicts("APPROVE", "APPROVE")
         self.close_p0()
@@ -264,6 +283,7 @@ class TestGovernanceState(CheckerCase):
     def test_legitimate_closure_passes(self) -> None:
         # Control: the rules are satisfiable (no deadlock) when evidence is real,
         # following the documented closure sequence.
+        self.reopen_p0()
         self.pending_review()
         self.record_verdicts("REQUEST_CHANGES", "REQUEST_CHANGES")
         self.record_verdicts("APPROVE", "APPROVE_WITH_NOTES")
@@ -276,6 +296,7 @@ class TestGovernanceState(CheckerCase):
         self.assertEqual(res.returncode, 0, res.stdout)
 
     def test_closed_outside_dedicated_repository(self) -> None:
+        self.reopen_p0()
         self.set_dedicated(False)
         # Regression for B-24 (N1): local annotated tag in the practice repo.
         self.pending_review()
@@ -285,9 +306,11 @@ class TestGovernanceState(CheckerCase):
         self.assertFails(r"phase P0: cannot be closed outside the dedicated repository")
 
     def test_gate_tag_must_be_ancestor_of_head(self) -> None:
+        self.reopen_p0()
         self.pending_review()
         self.record_verdicts("APPROVE", "APPROVE")
         self.make_dedicated()
+        self.commit("prepared")  # keep the reopened state on main across branch switches
         self.git("checkout", "-q", "--orphan", "elsewhere")
         self.commit("unrelated")
         self.git("tag", "-a", "phase-P0-v1.1.0", "-m", "P0")
@@ -349,6 +372,7 @@ class TestGovernanceState(CheckerCase):
         self.assertFails(r"gate item 9 is not_applicable without plan approval")
 
     def test_invalid_ran_result_combination(self) -> None:
+        self.reopen_p0()
         report = self.path("docs/phases/P0-gate-report.md")
         text = report.read_text()
         # Edit only the current run's row (superseded runs keep older tables).

@@ -4,7 +4,7 @@
 - Plan: [P0-plan.md](P0-plan.md) (approves n/a items 1, 3, 4, 6, 7, 9)
 - Gate commit: **the commit that adds this run** (the post-migration review fixes). `phase-P0-v1.1.0` is created on exactly this commit after its CI run passes; the closure commit then records the tag, the CI run, and the independent re-validation.
 - Run by: coordinator (items 2, 5, 8, 11 below, on the staged gate commit); GitHub Actions `governance` run #4 on `8ce0ed3`: **success**; independent validation agent from a clean GitHub clone at `8ce0ed3`: items 2, 5, 8, 11 **pass** (checker PASS with the same counts line; 79 tests OK; gitleaks "9 commits scanned … no leaks found"; pre-commit pass; pip-audit clean; bandit HIGH 0 / MEDIUM 0 / LOW 17; tree `6527d87` identical to the coordinator's).
-- **Gate commit: `8ce0ed3`.** Annotated tag `phase-P0-v1.1.0` created on it locally; **push refused by the session's git proxy (HTTP 403 on tag refs; GitHub Git Data API writes also refused)** — see item 12.
+- **Gate commit: `8ce0ed3`.** Annotated tag `phase-P0-v1.1.0` published on it (item 12). **Gate decision: PASSED — P0 closed** (closure commit records this; tag is not moved).
 - Environment: Linux x86_64, Python 3.13.16 (local) / 3.12 (CI), pre-commit 4.0.1, PyYAML 6.0.2 (hash-pinned), gitleaks 8.21.2 (checksum-verified).
 
 | # | Check | Command | Ran | Result | Notes |
@@ -20,7 +20,7 @@
 | 9 | Failure injection | — | no | not_applicable | Approved in P0 plan: product failure injection; no product |
 | 10 | Independent review | Reviewer A + Reviewer B: initial review, two verification rounds, post-migration review (+ verification of its fixes) | yes | pass | Latest verdicts recorded in `docs/reviews/pre-phase-1-review-resolution.md` |
 | 11 | Registers | `python -I scripts/check-governance.py` · `python -I -m unittest discover -s tests/governance -t . -v` | yes | pass | Checker prints `info: register counts: assumptions=8, debt=7 (open debt=4)`; Ran 79 tests … OK |
-| 12 | Git checkpoint | `git tag -a phase-P0-v1.1.0 8ce0ed3` + `git push origin phase-P0-v1.1.0` | no | not_run | Tag created **locally only**. Push refused: git proxy HTTP 403 on `refs/tags/*`; `POST /git/tags` refused ("Write access to this GitHub API path is not permitted through this proxy"). Owner pushes the tag (commands in `docs/repository-settings.md`). P0 stays `gate_review` until the tag exists on GitHub |
+| 12 | Git checkpoint | owner-authorized `bootstrap-p0-tag` workflow (run 38049649485) · `git ls-remote --tags origin` · `git cat-file -t phase-P0-v1.1.0` | yes | pass | Annotated tag `phase-P0-v1.1.0` (object `0480251`) → `8ce0ed3`, message "Agent Observatory reviewed Phase 0 governance baseline.", published 2026-10-10 11:47 UTC; verified by the workflow and independently by the coordinator (peeled ref = `8ce0ed3`). The session's git proxy refuses tag pushes, so the owner authorized a temporary `workflow_dispatch` workflow (contents: write, no inputs, fixed tag/target, refuses existing tag, no force); removed in the closure commit |
 
 ## Superseded runs
 

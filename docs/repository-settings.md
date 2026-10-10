@@ -2,12 +2,27 @@
 
 Status: **partially applied** (TD-004). Last verified: 2026-10-10.
 
-The agent cannot change repository settings: the session proxy rejects
-settings writes (HTTP 403, "Repository settings writes are not permitted
-through this proxy") and the Claude GitHub App lacks the *Administration*
-permission needed to read or write branch protection or rulesets (HTTP 403,
-"Resource not accessible by integration"). The owner applies the items marked
-**Owner**; the agent verifies them (see "Verification").
+The agent cannot change repository settings. Re-tried 2026-10-10 through
+every legitimate mechanism available to the session; each was refused:
+
+| Mechanism | Result |
+|---|---|
+| REST `PATCH /repos/{repo}` (merge methods, projects, auto-delete) | 403 — "Repository settings writes are not permitted through this proxy" |
+| REST `POST /repos/{repo}/rulesets` | 403 — "Write access to this GitHub API path is not permitted through this proxy" |
+| REST `PUT /repos/{repo}/branches/main/protection` | 403 — same |
+| REST `PUT /repos/{repo}/vulnerability-alerts` | 403 — "Access to this GitHub API path is not permitted through this proxy" |
+| REST `PUT/GET /repos/{repo}/actions/permissions/workflow` | 403 — "Access to this GitHub Actions path is not permitted through this proxy" |
+| GraphQL | 403 — "GitHub GraphQL is not available from Claude Code sessions" |
+| `gh` CLI | its configured token is invalid in this environment |
+| GitHub Actions `GITHUB_TOKEN` | cannot be granted Administration (not an Actions permission) |
+
+Independently of the proxy, GitHub itself answered "Resource not accessible
+by integration" when the session tried to *read* branch protection: the
+installed Claude GitHub App's token does not carry the repository
+Administration permission. App permissions are defined by the app, not by
+the installing user, so this is not something the owner can grant. The owner
+applies the items marked **Owner** in the GitHub web UI (about 5 minutes);
+the agent then verifies them (see "Verification").
 
 ## Current state (read via API, 2026-10-10)
 
@@ -77,22 +92,14 @@ separate reviewer identity exists.
 | Dependabot alerts | **on** | Settings → Code security |
 | Secret scanning / push protection | on **if offered** for this private repo on your plan (otherwise gitleaks in pre-commit and CI covers it) | Settings → Code security |
 
-## Phase 0 tag (Owner, one-time)
+## Phase 0 tag (done)
 
-The session's git proxy refuses tag pushes (HTTP 403) and GitHub API tag
-writes, so the agent cannot publish `phase-P0-v1.1.0`. From any machine with
-access to the repository:
-
-```sh
-git clone https://github.com/LarkinColtrane/agent-observatory.git && cd agent-observatory
-git tag -a phase-P0-v1.1.0 8ce0ed38198fc02fbcf14cb7a370844470567a6e \
-  -m "Agent Observatory reviewed Phase 0 governance baseline."
-git push origin phase-P0-v1.1.0
-```
-
-The agent then verifies the tag via `git ls-remote --tags origin` and records
-P0 as closed (closure commit). The commit must be exactly `8ce0ed3` (the
-reviewed, CI-green gate commit).
+`phase-P0-v1.1.0` (annotated, → `8ce0ed3`) was published on 2026-10-10 by a
+temporary, owner-authorized `workflow_dispatch` workflow (`contents: write`,
+no inputs, fixed tag/target/message, refused to replace an existing tag, no
+force push), because the session's git proxy refuses tag pushes. The workflow
+was removed immediately afterwards. It must not be re-added; future tags go
+through the owner or a reviewed release process.
 
 ## Break-glass (review B-26)
 

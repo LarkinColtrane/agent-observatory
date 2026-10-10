@@ -20,11 +20,11 @@ repository:
 phases:
   - id: P0
     name: Governance
-    status: gate_review
+    status: closed
     plan: docs/phases/P0-plan.md
     gate_report: docs/phases/P0-gate-report.md
     approved_not_applicable: [1, 3, 4, 6, 7, 9]
-    gate_tag: null                      # phase-P0-v1.1.0, to be created in the dedicated repo
+    gate_tag: phase-P0-v1.1.0           # annotated, -> 8ce0ed3; published 2026-10-10 via owner-authorized bootstrap workflow
     review_record: docs/reviews/pre-phase-1-review-resolution.md
     blocked_by: []
   - {id: P1, name: Engineering foundation, status: not_started, blocked_by: [TD-004]}

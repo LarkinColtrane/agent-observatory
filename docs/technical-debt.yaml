@@ -88,6 +88,7 @@ debt:
     history:
       - 2026-10-10: repository created and migrated; settings/protection writes confirmed impossible for the agent (proxy policy + missing Administration permission).
       - 2026-10-10: verification method changed to a probe branch under the same ruleset, because the readable API cannot show admin enforcement, force-push or deletion settings (post-migration review PM-02).
+      - 2026-10-10: owner authorized automation; re-tried REST (settings, rulesets, branch protection, vulnerability alerts, Actions permissions), GraphQL and gh CLI — all refused by the session proxy or unavailable; the Claude GitHub App token lacks Administration. Remains open and blocking P1 until the owner applies the ruleset and the probe-branch verification passes.
 
   - id: TD-005
     title: Secret-scan script pinned for linux x86_64 only
