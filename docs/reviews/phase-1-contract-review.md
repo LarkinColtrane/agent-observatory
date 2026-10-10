@@ -24,4 +24,16 @@ final verdicts follow the marker in the form the checker parses.
 | P1B-07 | MINOR | Extra freeze PR | `commit: self` (resolved to the commit that introduced the entry) — tag requested in the contract PR itself |
 | P1B-08 | NIT | `api` could import `db`/`cache` | Independence contract over `api`/`db`/`cache` (planted import breaks it) |
 
+## Round 2 (commit c8b07bb) — A: REQUEST_CHANGES · B: REQUEST_CHANGES
+
+All round-1 items verified resolved (P1A-05 partial pending owner tag ruleset, TD-016).
+
+| ID | Sev | Finding | Resolution |
+|---|---|---|---|
+| P1A-08 | MAJOR | `Settings` validation errors echoed the DB password (reproduced); test hid it via truncation | `hide_input_in_errors=True`; `get_settings()` raises a sanitized `ConfigurationError` (field + message only) built outside the `except` block, so no `__cause__`/`__context__` reference to raw inputs; short-URL regression tests over `str`, `repr` and `args`; both fixes mutation-checked |
+| P1A-09 / P1B-09 | MINOR / MAJOR | `commit: self` resolved by text search — could hit a comment or `tag:` field | Resolved from **parsed** `pending_tags` per historical version; latest addition wins; must still be present; contract must be approved at that version in that commit; 7 unit tests (comment, `tag:` field, stability, remove/re-add, removed, not-approved, unparseable) |
+| P1A-10 | NIT | `required_visibility: private` | `public` |
+| P1B-10 | MINOR | Kept audit entries would fail CI after a contract bump | Entries whose tag already exists are skipped by the approval rule; test + mutant |
+| P1B-11 | MINOR | A cancellation-ignoring check could hang `/readyz` | Bounded 0.1 s grace after cancel, stragglers abandoned; test with a cancellation-swallowing probe |
+
 <!-- final-verdicts -->

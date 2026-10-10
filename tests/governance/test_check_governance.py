@@ -540,6 +540,15 @@ class TestGovernanceState(CheckerCase):
                          r"unknown contract 'nope'",
                          r"pending_tags\[2\] phase-P1-v1\.0\.0: phase P1 is not in gate_review/closed")
 
+    def test_existing_tag_entry_is_an_audit_record(self) -> None:
+        # Review P1B-10: once created, a kept entry must not fail CI when the
+        # contract later changes (e.g. back to in_review for a v2 draft).
+        self.set_pending({"tag": "contract-phase1-foundation-v1.0.0", "commit": "self", "message": "m"})
+        self.commit("entry")
+        self.git("tag", "-a", "contract-phase1-foundation-v1.0.0", "-m", "m")
+        res = self.run_checker()
+        self.assertEqual(res.returncode, 0, res.stdout)
+
     def test_pending_contract_tag_for_approved_contract_passes(self) -> None:
         # Control: the rule is satisfiable once both verdicts are recorded.
         self.approve_p1_contract()

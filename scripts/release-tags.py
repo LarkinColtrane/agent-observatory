@@ -3,8 +3,11 @@
 
 Run only by .github/workflows/release-tags.yml on main (ADR-0005 §7).
 Each entry: {tag: <name>, commit: <40-hex sha> | self, message: <text>}.
-`self` resolves to the commit that first added the tag name to
-docs/governance-state.yaml, so it is stable across later pushes.
+`self` resolves to the most recent commit on main whose *parsed*
+`pending_tags` contains the entry while its predecessor's did not (comments
+and other mentions are ignored); for a contract-* tag the contract must
+already be approved/frozen at that version in that commit, else nothing
+resolves and the workflow refuses (reviews P1A-09, P1B-09).
 The push token is read from GH_TOKEN and used only for `git push`.
 Never moves or deletes tags. Exit 0 = all requested tags present at the
 requested commits; 1 = refused/failed.
@@ -54,11 +57,51 @@ def validate(entries: object) -> list[str]:
     return problems
 
 
+CONTRACT_TAG = re.compile(r"^contract-([a-z0-9-]+?)-v([0-9]+\.[0-9]+\.[0-9]+)$")
+
+
+def _has_entry(state: object, tag: str) -> bool:
+    if not isinstance(state, dict) or not isinstance(state.get("pending_tags"), list):
+        return False
+    return any(isinstance(e, dict) and e.get("tag") == tag for e in state["pending_tags"])
+
+
+def _contract_approved(state: object, tag: str) -> bool:
+    m = CONTRACT_TAG.match(tag)
+    if m is None:
+        return True  # phase tags: phase status is validated by the governance checker
+    cid, version = m.groups()
+    contracts = state.get("contracts") if isinstance(state, dict) else None
+    return any(
+        isinstance(c, dict) and c.get("id") == cid and c.get("version") == version
+        and c.get("status") in {"approved", "frozen"}
+        for c in (contracts if isinstance(contracts, list) else [])
+    )
+
+
+def resolve_self_from(history: list[tuple[str, str | None]], tag: str) -> str | None:
+    """Pure resolution over (sha, state-file text) pairs, oldest first."""
+    chosen: str | None = None
+    previous = False
+    for sha, text in history:
+        try:
+            state = yaml.safe_load(text) if text else None
+        except yaml.YAMLError:
+            state = None
+        present = _has_entry(state, tag)
+        if present and not previous:
+            chosen = sha if _contract_approved(state, tag) else None
+        previous = present
+    return chosen if previous else None  # entry must still be present at the tip
+
+
 def resolve_self(tag: str) -> str | None:
-    """First commit on main that added `tag` to the governance state file."""
-    out = git("log", "--format=%H", "--reverse", "-S", tag, "origin/main", "--",
-              "docs/governance-state.yaml").stdout.split()
-    return out[0] if out else None
+    revs = git("log", "--format=%H", "--reverse", "origin/main", "--", "docs/governance-state.yaml").stdout.split()
+    history: list[tuple[str, str | None]] = []
+    for rev in revs:
+        shown = git("show", f"{rev}:docs/governance-state.yaml", check=False)
+        history.append((rev, shown.stdout if shown.returncode == 0 else None))
+    return resolve_self_from(history, tag)
 
 
 def main() -> int:

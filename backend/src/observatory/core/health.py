@@ -14,6 +14,11 @@ from dataclasses import dataclass
 
 logger = logging.getLogger(__name__)
 
+# After the deadline, pending checks are cancelled and given this long to finish
+# unwinding; a check that suppresses cancellation is abandoned, never awaited
+# indefinitely (review P1B-11).
+_CANCEL_GRACE_S = 0.1
+
 
 @dataclass(frozen=True, slots=True)
 class CheckResult:
@@ -78,7 +83,7 @@ async def run_checks(checks: Sequence[HealthCheck], timeout_s: float = 2.0) -> l
     for task in pending:
         task.cancel()
     if pending:
-        await asyncio.gather(*pending, return_exceptions=True)
+        await asyncio.wait(pending, timeout=_CANCEL_GRACE_S)
         logger.warning("%d health check(s) exceeded %.2fs", len(pending), timeout_s)
     results: list[CheckResult] = []
     for i, (check, task) in enumerate(zip(checks, tasks, strict=True)):

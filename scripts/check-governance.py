@@ -493,6 +493,8 @@ def check_state(ctx: Ctx) -> None:
         if not _text(entry.get("message")):
             ctx.err(f"pending_tags[{i}] {tag}: message must be non-empty")
         phase_id, contract_id, version = m.groups()
+        if _annotated_tag_exists(ctx, tag):
+            continue  # already created: the entry is now an audit record (review P1B-10)
         if phase_id is not None:
             if status_of.get(phase_id) not in {"gate_review", "closed"}:
                 ctx.err(f"pending_tags[{i}] {tag}: phase {phase_id} is not in gate_review/closed")

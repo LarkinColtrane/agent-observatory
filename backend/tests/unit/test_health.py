@@ -96,6 +96,24 @@ async def test_base_exception_is_not_swallowed() -> None:
         await run_checks([make_check("k", fatal)])
 
 
+async def test_check_ignoring_cancellation_cannot_hang_readiness() -> None:
+    release = asyncio.Event()
+
+    async def stubborn() -> None:
+        while not release.is_set():
+            try:
+                await asyncio.sleep(3600)
+            except asyncio.CancelledError:
+                continue  # misbehaving probe: swallows cancellation
+
+    started = time.monotonic()
+    results = await run_checks([make_check("stubborn", stubborn)], timeout_s=0.2)
+    assert results == [CheckResult("stubborn", False)]
+    assert time.monotonic() - started < 1.0
+    release.set()  # let the abandoned task finish so the loop closes cleanly
+    await asyncio.sleep(0)
+
+
 def test_make_check_requires_name() -> None:
     with pytest.raises(ValueError, match="non-empty"):
         make_check("", _ok)
