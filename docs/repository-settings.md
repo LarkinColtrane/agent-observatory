@@ -77,6 +77,23 @@ separate reviewer identity exists.
 | Dependabot alerts | **on** | Settings → Code security |
 | Secret scanning / push protection | on **if offered** for this private repo on your plan (otherwise gitleaks in pre-commit and CI covers it) | Settings → Code security |
 
+## Phase 0 tag (Owner, one-time)
+
+The session's git proxy refuses tag pushes (HTTP 403) and GitHub API tag
+writes, so the agent cannot publish `phase-P0-v1.1.0`. From any machine with
+access to the repository:
+
+```sh
+git clone https://github.com/LarkinColtrane/agent-observatory.git && cd agent-observatory
+git tag -a phase-P0-v1.1.0 8ce0ed38198fc02fbcf14cb7a370844470567a6e \
+  -m "Agent Observatory reviewed Phase 0 governance baseline."
+git push origin phase-P0-v1.1.0
+```
+
+The agent then verifies the tag via `git ls-remote --tags origin` and records
+P0 as closed (closure commit). The commit must be exactly `8ce0ed3` (the
+reviewed, CI-green gate commit).
+
 ## Break-glass (review B-26)
 
 The required `governance` check downloads pinned tooling (PyPI packages, the

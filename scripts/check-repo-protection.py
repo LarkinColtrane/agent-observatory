@@ -82,7 +82,8 @@ def _get(path: str) -> Any:
     token = os.environ.get("GITHUB_TOKEN")
     if token:
         req.add_header("Authorization", f"Bearer {token}")
-    with urllib.request.urlopen(req, timeout=20) as resp:  # nosec B310 - scheme validated as https above
+    # Scheme validated as https above; bandit B310 suppressed for this call only.
+    with urllib.request.urlopen(req, timeout=20) as resp:  # nosec B310
         return json.load(resp)
 
 
