@@ -36,14 +36,12 @@ the agent then verifies them (see "Verification").
 | Auto-delete head branches | **on** | API |
 | Ruleset `main-protection` | **active**, empty bypass, `main` + `protection-probe` — verified behaviourally | rulesets API + probes |
 | Dependency graph | **on** (`GET dependency-graph/sbom` → 200; Dependabot graph runs observed) | API |
-| Secret scanning / push protection | **disabled** (`security_and_analysis`) → **Owner: enable** (free for public repositories; TD-011) | API |
+| Secret scanning / push protection | **enabled** / **enabled** (`security_and_analysis`, verified 2026-10-10 21:22 UTC; TD-011 repaid) | API |
 | Dependabot security updates | disabled (`security_and_analysis`) | API |
 | Dependabot alerts, Actions default workflow permissions | NOT_VERIFIABLE_FROM_SESSION (proxy 403) | — |
 
-Owner follow-ups (optional, non-blocking): in the ruleset, restrict allowed
-merge methods to squash (the repository setting already enforces it) and turn
-on "dismiss stale approvals" so it takes effect if approvals are ever raised
-above 0.
+Ruleset follow-ups applied by the owner and verified 2026-10-10 21:22 UTC:
+allowed merge methods = squash only; dismiss stale approvals = on.
 
 ## Policy decisions
 

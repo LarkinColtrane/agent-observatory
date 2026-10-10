@@ -203,9 +203,11 @@ debt:
       writes). Owner enables Settings → Code security → Secret Protection
       (secret scanning + push protection).
     severity: medium
-    status: open
+    status: repaid
     owner: project-owner
     component: C11
     blocks: []
     repayment_trigger: security_and_analysis reports secret_scanning and secret_scanning_push_protection enabled.
     recorded: 2026-10-10
+    history:
+      - 2026-10-10: repaid — owner enabled both; security_and_analysis reports secret_scanning enabled and secret_scanning_push_protection enabled (read 21:22 UTC).
