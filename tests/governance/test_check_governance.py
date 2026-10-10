@@ -20,6 +20,7 @@ import unittest
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
+REAL_REMOTE = "https://github.com/LarkinColtrane/agent-observatory.git"
 CHECKER = REPO / "scripts" / "check-governance.py"
 GIT_ENV = {
     **os.environ,
@@ -53,6 +54,9 @@ class CheckerCase(unittest.TestCase):
             else:
                 shutil.copy2(src, self.tmp / item)
         self.git("init", "-q", "-b", "main")
+        # Mirror the real repository: a dedicated repo has its GitHub remote.
+        if re.search(r"^\s*dedicated:\s*true", (self.tmp / "docs/governance-state.yaml").read_text(), re.M):
+            self.git("remote", "add", "origin", REAL_REMOTE)
         self.commit("baseline")
 
     def tearDown(self) -> None:
@@ -69,6 +73,15 @@ class CheckerCase(unittest.TestCase):
 
     def path(self, rel: str) -> Path:
         return self.tmp / rel
+
+    def set_dedicated(self, dedicated: bool) -> None:
+        """Set repository.dedicated and the matching remote, independent of
+        the real repository's current state."""
+        st = self.path("docs/governance-state.yaml")
+        st.write_text(re.sub(r"^(\s*dedicated:\s*)(true|false)", rf"\g<1>{str(dedicated).lower()}", st.read_text(), count=1, flags=re.M))
+        subprocess.run(["git", "-C", str(self.tmp), "remote", "remove", "origin"], env=GIT_ENV, capture_output=True)
+        if dedicated:
+            self.git("remote", "add", "origin", REAL_REMOTE)
 
     def edit(self, rel: str, old: str, new: str, count: int = 1) -> None:
         p = self.path(rel)
@@ -181,8 +194,9 @@ class TestGovernanceState(CheckerCase):
         self.assertFails(r"phase P2: is 'in_progress' but P1 is not closed", r"more than one phase active")
 
     def test_p1_cannot_start_outside_dedicated_repo(self) -> None:
+        self.set_dedicated(False)
         self.edit(self.STATE, "{id: P1, name: Engineering foundation, status: not_started", "{id: P1, name: Engineering foundation, status: in_progress")
-        self.assertFails(r"cannot start while the project is not in its dedicated repository", r"while blocked by open debt TD-002")
+        self.assertFails(r"cannot start while the project is not in its dedicated repository", r"while blocked by open debt TD-004")
 
     def test_closed_with_unrun_gate_item_rejected(self) -> None:
         # Regression for review findings B-01 / A-01 ("closed with exception").
@@ -245,8 +259,7 @@ class TestGovernanceState(CheckerCase):
         self.assertFails(r"does not exist as an annotated git tag")
 
     def make_dedicated(self) -> None:
-        self.edit(self.STATE, "dedicated: false", "dedicated: true")
-        self.git("remote", "add", "origin", "https://github.com/LarkinColtrane/agent-observatory.git")
+        self.set_dedicated(True)
 
     def test_legitimate_closure_passes(self) -> None:
         # Control: the rules are satisfiable (no deadlock) when evidence is real,
@@ -263,6 +276,7 @@ class TestGovernanceState(CheckerCase):
         self.assertEqual(res.returncode, 0, res.stdout)
 
     def test_closed_outside_dedicated_repository(self) -> None:
+        self.set_dedicated(False)
         # Regression for B-24 (N1): local annotated tag in the practice repo.
         self.pending_review()
         self.record_verdicts("APPROVE", "APPROVE")
@@ -317,7 +331,8 @@ class TestGovernanceState(CheckerCase):
 
     def test_dedicated_repository_requires_matching_remote(self) -> None:
         # Regression for B-19 / N-05 (s2/b6).
-        self.edit(self.STATE, "dedicated: false", "dedicated: true")
+        self.set_dedicated(True)
+        self.git("remote", "remove", "origin")
         self.assertFails(r"no git remote points at 'LarkinColtrane/agent-observatory'")
         self.git("remote", "add", "origin", "https://example.invalid/evil/agent-observatory.git")
         self.assertFails(r"no git remote points at 'LarkinColtrane/agent-observatory'")  # B-24 (N4)
@@ -351,11 +366,11 @@ class TestGovernanceState(CheckerCase):
         self.assertFails(r"gate items missing: \[10\]")
 
     def test_open_blocking_debt_missing_from_blocked_by(self) -> None:
-        self.edit(self.STATE, "blocked_by: [TD-002, TD-004]", "blocked_by: [TD-004]")
-        self.assertFails(r"phase P1: open debt TD-002 blocks it but is not in blocked_by")
+        self.edit(self.STATE, "blocked_by: [TD-004]}", "blocked_by: []}")
+        self.assertFails(r"phase P1: open debt TD-004 blocks it but is not in blocked_by")
 
     def test_blocked_by_repaid_or_unknown_debt(self) -> None:
-        self.edit(self.STATE, "blocked_by: [TD-002, TD-004]", "blocked_by: [TD-002, TD-004, TD-003, TD-999]")
+        self.edit(self.STATE, "blocked_by: [TD-004]}", "blocked_by: [TD-004, TD-003, TD-999]}")
         self.assertFails(r"blocked_by 'TD-003' is not open debt", r"unknown debt 'TD-999'")
 
     def test_event_protocol_cannot_be_drafted_before_p2(self) -> None:

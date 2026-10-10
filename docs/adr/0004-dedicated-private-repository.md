@@ -1,6 +1,6 @@
 # ADR-0004: Dedicated private repository
 
-- Status: accepted — implementation blocked on project owner (TD-002)
+- Status: accepted — implemented 2026-10-10 (repository + migration); branch protection pending owner (TD-004)
 - Date: 2026-10-10
 - Deciders: Project owner (direction); Coordinator; Reviewer A and Reviewer B (sign-off)
 - Components: C11, C12

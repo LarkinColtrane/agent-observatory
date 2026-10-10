@@ -1,5 +1,31 @@
 # P0 Gate Report — Governance
 
+- Phase: P0 · Run 4 · Date: 2026-10-10 · Repository: `LarkinColtrane/agent-observatory` (private)
+- Plan: [P0-plan.md](P0-plan.md) (approves n/a items 1, 3, 4, 6, 7, 9)
+- Scope: the migrated history (`docs/migration-provenance.md`) plus the gate commit recording the migration. Content of commits 1–5 is tree-identical to run 3's validated commits.
+- Run by: coordinator in the dedicated repository (items 2, 5, 8, 11), GitHub Actions `governance` workflow (CI), and an independent validation agent from a clean clone of GitHub (recorded in the closure commit).
+- Environment: Linux x86_64, Python 3.13.16 (local) / 3.12 (CI), pre-commit 4.0.1, PyYAML 6.0.2 (hash-pinned), gitleaks 8.21.2 (checksum-verified).
+- **Gate decision: items 1–11 complete; item 12 pending** (tag is created on this gate commit, then recorded by the closure commit — see the closure sequence in `phase-quality-gates.md`).
+
+| # | Check | Command | Ran | Result | Notes |
+|---|---|---|---|---|---|
+| 1 | Full test suite | — | no | not_applicable | Approved in P0 plan: no application code |
+| 2 | Lint | `pre-commit run check-yaml --all-files` · `pre-commit run check-json --all-files` · `python -I scripts/check-governance.py` | yes | pass | check-yaml Passed; check-json Skipped (no JSON files); checker PASS |
+| 3 | Format | — | no | not_applicable | Approved in P0 plan; whitespace/EOL hygiene covered by item 5 |
+| 4 | Strict typecheck | — | no | not_applicable | Approved in P0 plan: no typed application code |
+| 5 | Pre-commit | `SKIP=no-commit-to-branch pre-commit run --all-files` (local, on `main`) · CI step "Pre-commit (all files)" | yes | pass | Local exit 0 (branch guard skipped because the gate runs on `main`, as in CI); CI run #1 on `061d004` success |
+| 6 | Docker | — | no | not_applicable | Approved in P0 plan: no images |
+| 7 | Migrations | — | no | not_applicable | Approved in P0 plan: no database |
+| 8 | Security checks | `scripts/secret-scan.sh` · `scripts/secret-scan.sh --working-tree` · `pip-audit -r requirements-governance.txt` · `bandit -r scripts/ tests/` · CI step "Secret scan (full history)" | yes | pass | gitleaks: "6 commits scanned … no leaks found" (entire repository history — no practice-repo commits exist here); working tree: no leaks; pip-audit: no known vulnerabilities; bandit: HIGH 0, MEDIUM 0, LOW 15 (B603×7, B607×6, B404×2; subprocess with list args, no shell); CI secret scan success |
+| 9 | Failure injection | — | no | not_applicable | Approved in P0 plan: product failure injection; no product |
+| 10 | Independent review | Reviewer A + Reviewer B: initial review, two verification rounds; post-migration review recorded in closure commit | yes | pass | Final verdicts APPROVE_WITH_NOTES (A) and APPROVE_WITH_NOTES (B) recorded in `docs/reviews/pre-phase-1-review-resolution.md` |
+| 11 | Registers | `python -I scripts/check-governance.py` · `python -I -m unittest discover -s tests/governance -t . -v` | yes | pass | Checker prints `info: register counts: assumptions=8, debt=7 (open debt=4)`; Ran 68 tests … OK |
+| 12 | Git checkpoint | `git tag -a phase-P0-v1.1.0` on this gate commit + `git push origin phase-P0-v1.1.0` | no | not_run | Next step of the closure sequence; recorded by the closure commit |
+
+## Superseded runs
+
+### Run 3 (temporary session, practice-repository branch — superseded by run 4 after migration)
+
 - Phase: P0 · Run 3 · Date: 2026-10-10
 - Plan: [P0-plan.md](P0-plan.md) (approves n/a items 1, 3, 4, 6, 7, 9)
 - Run by: **independent integration/validation agent** (not the coordinator) on commits `992eca2` and `368429f`, in its own clone, with its own venv installed via `pip install --require-hashes -r requirements-governance.txt`. Results below are from `368429f`.
@@ -22,7 +48,7 @@
 | 11 | Registers | `python -I scripts/check-governance.py` · `python -I -m unittest discover -s tests/governance -t . -v` | yes | pass | Checker prints `info: register counts: assumptions=8, debt=7 (open debt=6)` on 368429f; Ran 68 tests … OK. After this records commit marks TD-003 repaid, the checker prints `open debt=5` |
 | 12 | Git checkpoint | `git tag -a phase-P0-v1.1.0` + push in `agent-observatory` | no | not_run | Blocked: dedicated repository does not exist (TD-002). No tag created in the practice repository by design (ADR-0004); the checker forbids closing P0 outside it |
 
-## Adversarial evidence (supporting items 8 and 11)
+#### Adversarial evidence (supporting items 8 and 11)
 
 - **Bypass probes (validation agent, 368429f):** Reviewer B's N1–N4 and a
   case-differing claim overlap each FAIL (rc=1) with the expected message;
@@ -35,7 +61,7 @@
   tests OK in a fresh hash-pinned venv. Tree = 368429f minus exactly the 4
   practice-repo files.
 
-### Coordinator's earlier adversarial evidence (still valid)
+##### Coordinator's earlier adversarial evidence (still valid)
 
 - **Checker mutation testing (final 68-test suite, coordinator):** nine
   broken checker variants — always exit 0; state check removed; secret
@@ -56,7 +82,7 @@
   case (test `test_history_only_secret`). Tampered checksum → exit 1, no
   binary installed.
 
-## Superseded runs
+
 
 ### Run 2 (coordinator self-run on the staged tree — superseded)
 

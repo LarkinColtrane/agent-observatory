@@ -1,6 +1,6 @@
 # Migration to the dedicated private repository
 
-Status: **BLOCKED — awaiting project owner** (TD-002, TD-004, ADR-0004).
+Status: **COMPLETED 2026-10-10** — see [migration-provenance.md](../migration-provenance.md). Branch protection pending (TD-004, [repository-settings.md](../repository-settings.md)). Kept as the historical procedure.
 
 The agent cannot create repositories. Everything below is non-destructive for
 the practice repository: nothing there is deleted or rewritten.

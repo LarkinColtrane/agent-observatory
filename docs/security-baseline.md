@@ -6,12 +6,12 @@ adapter as a potential source of hostile or sensitive input.
 
 ## Repository
 
-- **Target state (not yet in force — TD-002, TD-004):** the project lives in a
-  dedicated **private** repository
-  ([ADR-0004](adr/0004-dedicated-private-repository.md)); branch protection on
-  `main` requires review and passing CI; CODEOWNERS covers governance paths.
-  `.github/CODEOWNERS` is committed but enforces nothing until branch
-  protection is enabled.
+- **In force:** the project lives in the dedicated **private** repository
+  `LarkinColtrane/agent-observatory`
+  ([ADR-0004](adr/0004-dedicated-private-repository.md)).
+- **Target state (not yet in force — TD-004):** branch protection on `main`
+  requires review and passing CI; CODEOWNERS covers governance paths. See
+  [repository-settings.md](repository-settings.md).
 - Only history that has passed a full secret scan is migrated in.
 
 ## Secrets

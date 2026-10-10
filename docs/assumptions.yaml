@@ -93,6 +93,7 @@ assumptions:
     recorded: 2026-10-10
     history:
       - 2026-10-10: invalidated by owner direction and ADR-0004 — project must live in a dedicated private repository (see TD-002).
+      - 2026-10-10: superseded in practice — migrated to private LarkinColtrane/agent-observatory (docs/migration-provenance.md).
 
   - id: A-007
     statement: >

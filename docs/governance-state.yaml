@@ -7,13 +7,13 @@ schema_version: 1
 project: agent-observatory
 
 repository:
-  dedicated: false                      # TD-002 — flips to true only after verified migration
+  dedicated: true                       # migrated and verified 2026-10-10 (TD-002 repaid)
   required_owner: LarkinColtrane
   required_name: agent-observatory
   required_visibility: private
   current_location: >
-    LarkinColtrane/Og-Repo (public practice repo), branch
-    claude/agent-observatory-governance — migration source only.
+    github.com/LarkinColtrane/agent-observatory (private), default branch main.
+    Migration provenance: docs/migration-provenance.md.
 
 # Phase statuses: not_started | in_progress | gate_review | closed
 # blocked_by: open debt ids whose `blocks` list includes this phase.
@@ -27,7 +27,7 @@ phases:
     gate_tag: null                      # phase-P0-v1.1.0, to be created in the dedicated repo
     review_record: docs/reviews/pre-phase-1-review-resolution.md
     blocked_by: []
-  - {id: P1, name: Engineering foundation, status: not_started, blocked_by: [TD-002, TD-004]}
+  - {id: P1, name: Engineering foundation, status: not_started, blocked_by: [TD-004]}
   - {id: P2, name: Universal agent event protocol, status: not_started, blocked_by: [TD-001]}
   - {id: P3, name: Adapter / SDK layer, status: not_started, blocked_by: []}
   - {id: P4, name: Agent state engine, status: not_started, blocked_by: []}

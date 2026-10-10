@@ -29,6 +29,7 @@ Phase order: [roadmap.md](roadmap.md) · Current state: [governance-state.yaml](
 | [phases/P0-plan.md](phases/P0-plan.md) · [phases/P0-gate-report.md](phases/P0-gate-report.md) | Phase 0 plan and gate |
 | [migration/dedicated-repo-migration.md](migration/dedicated-repo-migration.md) | Moving to the dedicated private repository |
 | [migration-provenance.md](migration-provenance.md) | Original → migrated commit mapping and method |
+| [repository-settings.md](repository-settings.md) | GitHub settings and branch protection (applied / pending) |
 
 ## Commands
 

@@ -39,7 +39,7 @@ debt:
       docs/migration/dedicated-repo-migration.md. Until it is done, the P0
       checkpoint tag cannot be created in the correct repository.
     severity: high
-    status: open
+    status: repaid
     owner: project-owner
     component: C12
     blocks: [P1]
@@ -47,6 +47,7 @@ debt:
     recorded: 2026-10-10
     history:
       - 2026-10-10: originally low severity "decide on dedicated repo or cleanup"; owner decided on a dedicated private repo; raised to high and made blocking for P1.
+      - 2026-10-10: repaid — owner created private LarkinColtrane/agent-observatory; 5 project commits migrated with identical trees and metadata (docs/migration-provenance.md); pushed to main and verified by fetch; no practice-repository files or history. The P0 tag is tracked by the P0 gate (item 12), not by this item.
 
   - id: TD-003
     title: Governance baseline had no independent review
@@ -68,18 +69,24 @@ debt:
       - 2026-10-10: repaid — final verdicts APPROVE_WITH_NOTES from Reviewer A and Reviewer B recorded; notes fixed and confirmed by the independent validation agent.
 
   - id: TD-004
-    title: Branch protection and CODEOWNERS not enforced
+    title: Branch protection, CODEOWNERS enforcement and repository settings not configured
     description: >
-      .github/CODEOWNERS is committed, but branch protection on main (required
-      review, required governance CI, no force-push, no direct push) can only
-      be configured by the owner in the dedicated repository.
+      .github/CODEOWNERS is committed, but nothing enforces it. The agent
+      cannot configure repository settings: the session proxy rejects
+      repository settings writes ("Repository settings writes are not
+      permitted through this proxy", HTTP 403) and the Claude GitHub App lacks
+      the Administration permission needed to read or write branch protection
+      or rulesets ("Resource not accessible by integration", HTTP 403). The
+      owner must apply the settings listed in docs/repository-settings.md.
     severity: high
     status: open
     owner: project-owner
     component: C11
     blocks: [P1]
-    repayment_trigger: Configured in the dedicated repository during migration.
+    repayment_trigger: Owner applies docs/repository-settings.md; an agent verifies the protection via a read of the settings page or a rejected direct push.
     recorded: 2026-10-10
+    history:
+      - 2026-10-10: repository created and migrated; settings/protection writes confirmed impossible for the agent (proxy policy + missing Administration permission).
 
   - id: TD-005
     title: Secret-scan script pinned for linux x86_64 only

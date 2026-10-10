@@ -5,9 +5,6 @@
 # Revs are pinned to commit SHAs (tags are mutable, review N-04); update
 # deliberately via a reviewed change.
 minimum_pre_commit_version: "3.5.0"
-# Practice-repository files are not part of agent-observatory and must never be
-# modified by hooks (review N-02). Remove this line after migration (ADR-0004).
-exclude: ^(README\.md|test\.txt|test2\.text|Result\.txt)$
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: cef0300fd0fc4d2a87a85fa2093c6b283ea36f4b # frozen: v5.0.0
