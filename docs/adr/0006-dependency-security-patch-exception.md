@@ -4,7 +4,7 @@
 - Date: 2026-10-11
 - Deciders: Coordinator (proposed); Reviewer A and Reviewer B (sign-off)
 - Components: C11
-- Related: ADR-0005, ADR-0002
+- Related: ADR-0005, ADR-0002, A-010, TD-013
 
 ## Context
 
@@ -41,7 +41,18 @@ that is impossible, it is a blocker for the owner, not an allowlist entry.
 
 | Package | From → to | Advisories | Published | Lock |
 |---|---|---|---|---|
-| (filled from the AO-P1-003 handoff) | | | | `frontend/package-lock.json` |
+| `next` (+ `@next/env`, `@next/swc-*` binaries) | 16.3.6 → 16.3.8 | GHSA-3w37-wq28-93x7, GHSA-4jqv-mc3x-m676, GHSA-39w2-rjm5-chcv, GHSA-f87g-xv8r-7p7x, GHSA-mcj8-r9mp-w47p, GHSA-cjq9-62q9-8jv4 | 2026-09-30 | `frontend/package-lock.json` |
+| `sharp` (+ `@img/sharp-*` 0.35.5, `@img/sharp-libvips-*` 1.3.4), via `overrides` | 0.35.4 → 0.35.5 | GHSA-wq5f-xc86-pv6w | 2026-09-27 | `frontend/package-lock.json` |
+| `source-map-js`, via `overrides` | 1.2.1 → 1.2.2 | GHSA-68fv-2mgg-jv7q | 2026-09-30 | `frontend/package-lock.json` |
+
+Lock produced with `npm install --before=2026-10-04`; every other entry is
+unchanged from the 2026-09-25 lock (checked by name, version and integrity in
+AO-P1-003). A fourth advisory, GHSA-vfj7-8cjw-p6xm in `braces` (no fixed
+version), reached the tree only through `eslint-config-next` →
+`@next/eslint-plugin-next` → `fast-glob`; per the rule above it was removed,
+not allowlisted: ESLint now uses `@eslint/js`, `typescript-eslint`, and the
+React, React Hooks and jsx-a11y plugins (TD-013 tracks the lost Next-specific
+rules).
 
 ## Consequences
 

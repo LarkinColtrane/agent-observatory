@@ -228,3 +228,19 @@ debt:
     blocks: []
     repayment_trigger: Tag ruleset active with empty bypass, restricting updates and deletions of phase-* and contract-*.
     recorded: 2026-10-10
+  - id: TD-013
+    title: Next.js-specific ESLint rules are not enabled
+    description: >
+      eslint-config-next pulls braces 3.0.3 (GHSA-vfj7-8cjw-p6xm, no fixed
+      version) through @next/eslint-plugin-next and fast-glob, so it was
+      removed (ADR-0006). Generic TypeScript, React, React Hooks and jsx-a11y
+      rules still run with zero warnings; Next rules such as
+      no-html-link-for-pages and no-img-element do not. Low impact while the
+      frontend has no product UI.
+    severity: low
+    status: open
+    owner: coordinator
+    component: C11
+    blocks: [P6]
+    repayment_trigger: Restore the Next ESLint plugin once a release without a vulnerable braces chain exists (or braces ships a fix), with the full npm audit still clean.
+    recorded: 2026-10-11
