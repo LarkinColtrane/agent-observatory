@@ -23,7 +23,8 @@ owned_paths:
   - requirements-governance.txt
 read_only_paths: [frontend, backend/src/observatory/api]
 hotspots: [.github/workflows/governance.yml, .pre-commit-config.yaml]
-allocated_ids: {assumptions: [], debt: []}
+# Debt recorded by the coordinator during integration and review (2026-10-11).
+allocated_ids: {assumptions: [], debt: [TD-017, TD-018, TD-019, TD-020, TD-021, TD-022]}
 out_of_scope: [product behaviour]
 acceptance_criteria:
   - {id: AC1, statement: all CI jobs green, verified_by: CI run on main}

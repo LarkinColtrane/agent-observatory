@@ -1,0 +1,52 @@
+task_id: AO-P1-004
+from: w3-data-containers
+to: coordinator
+status: complete
+commit: 5f6536f
+branch: p1/006-integration
+summary: >
+  db and cache seams (psycopg engine with hidden parameters; capped Redis pool;
+  fail-closed checks), Alembic baseline with an advisory lock and lock_timeout,
+  a validated Postgres role bootstrap (DDL migrator vs DML-only app role, no
+  memberships, hardened PUBLIC grants), backend Dockerfile and compose stack
+  with a bootstrap-aware healthcheck. Squashed snapshot of task branch dbec4aa.
+inspected:
+  - docs/adr/0005-phase-1-foundation-contract.md
+  - docs/security-baseline.md
+  - backend/src/observatory/core/config.py
+  - backend/src/observatory/core/health.py
+searched_for_reuse:
+  - query: existing engine/client/migration helpers
+    result: none; SQLAlchemy async engine, redis.asyncio and Alembic used directly; to_psycopg_url added (declared addition to the db surface).
+changes:
+  - {path: backend/src/observatory/db, kind: added, note: engine, URL handling, migration constants}
+  - {path: backend/src/observatory/cache, kind: added, note: Redis client and check}
+  - {path: backend/migrations, kind: added, note: env.py and 0001_baseline}
+  - {path: backend/tests/integration, kind: added, note: live-service, role, bootstrap, migration and failure-mode tests}
+  - {path: deploy/postgres, kind: added, note: role bootstrap script}
+  - {path: compose.yaml, kind: added, note: postgres, redis, migrate, backend}
+contracts:
+  consumed: [docs/adr/0005-phase-1-foundation-contract.md@contract-phase1-foundation-v1.0.0]
+  changed: []
+acceptance_criteria:
+  - {id: AC1, met: true, evidence: "https://github.com/LarkinColtrane/agent-observatory/actions/runs/38148626706 (job backend-integration: alembic upgrade/downgrade/upgrade, exactly one head)"}
+  - {id: AC2, met: true, evidence: "test_failure_modes and test_live_services (closed port, unresolvable host, black hole, in-flight cancellation) in https://github.com/LarkinColtrane/agent-observatory/actions/runs/38148626706"}
+  - {id: AC3, met: true, evidence: "https://github.com/LarkinColtrane/agent-observatory/actions/runs/38148626706 (job containers: postgres, redis, migrate, backend healthy; readyz database+redis ok; backend uid 10001)"}
+checks:
+  - level: L1
+    command: cd backend && .venv/bin/ruff check . && .venv/bin/mypy && .venv/bin/lint-imports
+    ran: true
+    result: pass
+    evidence: "https://github.com/LarkinColtrane/agent-observatory/actions/runs/38148626706 (job backend)"
+  - level: L2
+    command: cd backend && AO_REQUIRE_INTEGRATION=1 .venv/bin/pytest -q --cov
+    ran: true
+    result: pass
+    evidence: "https://github.com/LarkinColtrane/agent-observatory/actions/runs/38148626706 (job backend-integration: 306 passed)"
+risks_and_open_questions:
+  - Prod migrate under least privilege (TD-019), env-var secrets (TD-020), Redis without AUTH/TLS (TD-021); a cancelled mid-query probe holds a pool slot ~10 s (psycopg), bounded by single-flight readiness.
+new_assumptions: [A-011]
+new_debt: []
+specialist_review_needed: [security, data-integrity, concurrency]
+rollback: Revert the squash commit and the compose/CI wiring in AO-P1-006; migrations have no product tables.
+next_steps: none
