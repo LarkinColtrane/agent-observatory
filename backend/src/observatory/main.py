@@ -11,15 +11,19 @@ from __future__ import annotations
 from collections.abc import AsyncIterator, Callable
 from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from functools import cache
+from typing import TYPE_CHECKING
 
 from fastapi import FastAPI
 
 from observatory.api.app import create_app
 from observatory.cache import create_redis, redis_check
-from observatory.core.config import Settings, get_settings
+from observatory.core.config import get_settings
 from observatory.core.health import HealthCheck
 from observatory.core.logging import configure_logging
 from observatory.db import create_engine, database_check
+
+if TYPE_CHECKING:
+    from observatory.core.config import Settings  # noqa: TID251 (type only)
 
 Lifespan = Callable[[FastAPI], AbstractAsyncContextManager[None]]
 

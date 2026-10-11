@@ -1,6 +1,10 @@
-# Governance CI skeleton (pre-Phase-1). Application jobs (backend/frontend
-# lint, typecheck, tests, Docker, migrations) are added in Phase 1 alongside
-# the source trees they check. See docs/phase-quality-gates.md.
+# Phase 1 CI (ADR-0005 §5). One workflow, no workflow-level `paths` filters:
+# every job runs on every PR and push to main. The final job `governance` is
+# the single required status check; it fails unless every other job
+# succeeded (skipped, cancelled and failed all fail), so adding a job here
+# never needs a repository-settings change. tests/governance/test_workflow.py
+# asserts that `needs` covers every job.
+# Actions are pinned to commit SHAs (tags are mutable, review N-04).
 name: governance
 
 on:
@@ -16,23 +20,29 @@ concurrency:
   # Cancel superseded PR runs only; every push to main gets a completed run.
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
+env:
+  UV_VERSION: "0.11.32"
+  PYTHON_VERSION: "3.12"
+
 jobs:
-  governance:
+  governance-core:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0 # full history for the secret scan
           persist-credentials: false
-      - uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5.4.0
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
-          python-version: "3.12"
+          python-version: ${{ env.PYTHON_VERSION }}
       - name: Install governance tooling
         run: python -m pip install --require-hashes -r requirements-governance.txt
       - name: Governance check
         run: python -I scripts/check-governance.py
-      - name: Governance checker adversarial tests
+      - name: Task/handoff artifact check
+        run: python -I scripts/check-artifacts.py
+      - name: Governance tooling adversarial tests
         run: python -I -m unittest discover -s tests/governance -t . -v
       - name: Pre-commit (all files; branch guard skipped in CI)
         env:
@@ -44,3 +54,122 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: python -I scripts/check-repo-protection.py
+
+  backend:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: false
+      - name: Install (strictly from uv.lock)
+        run: uv sync --locked --python "${PYTHON_VERSION}"
+      - name: Ruff lint
+        run: .venv/bin/ruff check .
+      - name: Ruff format
+        run: .venv/bin/ruff format --check .
+      - name: mypy --strict
+        run: .venv/bin/mypy
+      - name: Module boundaries (import-linter)
+        run: .venv/bin/lint-imports
+      - name: Unit tests
+        run: .venv/bin/pytest tests/unit -q
+      - name: Bandit
+        run: .venv/bin/bandit -q -r src
+      - name: Dependency audit (pip-audit, hashed lock export)
+        run: |
+          uv export --locked --format requirements-txt --no-emit-project -q > "${RUNNER_TEMP}/requirements-audit.txt"
+          .venv/bin/pip-audit --strict --disable-pip --require-hashes -r "${RUNNER_TEMP}/requirements-audit.txt"
+
+  backend-integration:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: false
+      - name: Install (strictly from uv.lock)
+        run: uv sync --locked --python "${PYTHON_VERSION}"
+      # INTEGRATION-STEPS (finalised from the AO-P1-004 handoff)
+
+  frontend:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: frontend
+    env:
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: frontend/.nvmrc
+      - name: Install (strictly from package-lock.json)
+        run: npm ci
+      - name: Lint
+        run: npm run lint
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Format
+        run: npm run format:check
+      - name: Tests
+        run: npm test -- --run
+      - name: Build
+        run: npm run build
+      - name: Dependency audit (high and above)
+        run: npm audit --audit-level=high
+
+  containers:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # CONTAINER-STEPS (finalised from the AO-P1-004 handoff)
+
+  # Single required status check. Fails unless every job above succeeded.
+  governance:
+    if: always()
+    needs: [governance-core, backend, backend-integration, frontend, containers]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      - name: Every required job succeeded
+        env:
+          NEEDS_JSON: ${{ toJSON(needs) }}
+        run: |
+          python3 -I - <<'PY'
+          import json, os, sys
+          needs = json.loads(os.environ["NEEDS_JSON"])
+          bad = {job: v.get("result") for job, v in needs.items() if v.get("result") != "success"}
+          for job, v in sorted(needs.items()):
+              print(f"{job}: {v.get('result')}")
+          if not needs or bad:
+              print(f"FAIL: not successful: {bad or 'no jobs'}")
+              sys.exit(1)
+          print("OK: all required jobs succeeded")
+          PY

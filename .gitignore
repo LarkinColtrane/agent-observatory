@@ -2,6 +2,7 @@
 .env
 .env.*
 !.env.example
+compose.env
 .envrc
 .netrc
 .npmrc
@@ -56,6 +57,10 @@ venv/
 .ruff_cache/
 .pytest_cache/
 .coverage
+.coverage.*
+htmlcov/
+coverage/
+*.tsbuildinfo
 node_modules/
 .next/
 dist/
