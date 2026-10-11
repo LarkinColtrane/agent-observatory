@@ -1,0 +1,112 @@
+# Agent Observatory local stack (ADR-0005 §1; AO-P1-004).
+#
+#   cp compose.env.example .env   # .env is git-ignored; replace EVERY <change-me-...> value
+#   docker compose up --build
+#
+# Secrets come only from the environment / .env and are required: compose
+# refuses to start if one is missing. Passwords must match ^[A-Za-z0-9_-]{16,}$,
+# must not contain "change", and must all differ (checked by the role
+# bootstrap), e.g. `python3 -c "import secrets; print(secrets.token_hex(24))"`.
+# Postgres and Redis are not published to the host; the backend is published
+# on 127.0.0.1 only.
+#
+# The role bootstrap runs only on the FIRST start with an empty pgdata volume.
+# If it fails (e.g. a placeholder password), postgres stays unhealthy and
+# nothing else starts; fix .env, then `docker compose down -v` (deletes the
+# volume) and `docker compose up` again.
+name: agent-observatory
+
+# migrate and backend: read-only root filesystem, no capabilities, no privilege
+# escalation, writable /tmp only.
+x-hardening: &hardening
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: ["no-new-privileges:true"]
+  tmpfs: [/tmp]
+
+services:
+  postgres:
+    image: postgres:16.10-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${AO_PG_SUPERUSER_PASSWORD:?set AO_PG_SUPERUSER_PASSWORD (see compose.env.example)}
+      # Consumed by deploy/postgres/init/10-ao-roles.sh on first start (empty volume).
+      AO_PG_DATABASE: observatory
+      AO_PG_MIGRATION_PASSWORD: ${AO_PG_MIGRATION_PASSWORD:?set AO_PG_MIGRATION_PASSWORD (see compose.env.example)}
+      AO_PG_APP_PASSWORD: ${AO_PG_APP_PASSWORD:?set AO_PG_APP_PASSWORD (see compose.env.example)}
+    volumes:
+      - ./deploy/postgres/init:/docker-entrypoint-initdb.d:ro
+      - pgdata:/var/lib/postgresql/data
+    # The entrypoint starts as root, prepares the data directory, then drops to
+    # the postgres user: these are the only capabilities it needs.
+    cap_drop: [ALL]
+    cap_add: [CHOWN, DAC_OVERRIDE, FOWNER, SETGID, SETUID]
+    security_opt: ["no-new-privileges:true"]
+    healthcheck:
+      # Healthy only when the server accepts TCP connections (the init phase is
+      # socket-only) AND the role bootstrap's completion marker exists, so a
+      # failed first init can never turn healthy.
+      test: ["CMD-SHELL", "pg_isready -q -h 127.0.0.1 -p 5432 -U postgres -d observatory && sh /docker-entrypoint-initdb.d/10-ao-roles.sh --check"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 20s
+    restart: unless-stopped
+
+  redis:
+    image: redis:7.4.11-alpine
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    # Runs as the image's unprivileged redis user from the start; nothing is
+    # persisted (no RDB/AOF).
+    user: redis
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli ping | grep -q PONG"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
+    restart: unless-stopped
+
+  migrate:
+    <<: *hardening
+    build: ./backend
+    image: agent-observatory/backend:local
+    command: ["alembic", "upgrade", "head"]
+    environment:
+      AO_ENV: ${AO_ENV:-dev}
+      # DDL/owner role: used only by Alembic.
+      AO_MIGRATION_DATABASE_URL: postgresql+psycopg://ao_migrator:${AO_PG_MIGRATION_PASSWORD:?set AO_PG_MIGRATION_PASSWORD (see compose.env.example)}@postgres:5432/observatory
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      disable: true
+    restart: "no"
+
+  backend:
+    <<: *hardening
+    build: ./backend
+    image: agent-observatory/backend:local
+    environment:
+      AO_ENV: ${AO_ENV:-dev}
+      # DML-only application role.
+      AO_DATABASE_URL: postgresql+psycopg://ao_app:${AO_PG_APP_PASSWORD:?set AO_PG_APP_PASSWORD (see compose.env.example)}@postgres:5432/observatory
+      AO_REDIS_URL: redis://redis:6379/0
+      # Passed through only if set in the environment / .env (no empty default).
+      AO_GIT_SHA:
+    ports:
+      - "127.0.0.1:8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+volumes:
+  pgdata:
