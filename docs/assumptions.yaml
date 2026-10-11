@@ -143,4 +143,3 @@ assumptions:
     review_phase: P1
     validation_plan: Observed by Reviewers A and B against a black-hole server (OperationalError at 2.0 s; ok=False at the 2.0 s run_checks deadline).
     recorded: 2026-10-11
-
