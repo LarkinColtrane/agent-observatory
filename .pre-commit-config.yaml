@@ -48,6 +48,13 @@ repos:
         additional_dependencies: ["pyyaml==6.0.2"]
         pass_filenames: false
         always_run: true
+      - id: governance-artifacts
+        name: task/handoff artifact check
+        entry: python3 -I scripts/check-artifacts.py
+        language: python
+        additional_dependencies: ["pyyaml==6.0.2"]
+        pass_filenames: false
+        files: ^(docs/phases/P[0-9]+-tasks/|docs/governance-state\.yaml|scripts/check-artifacts\.py)
       - id: governance-checker-tests
         name: governance checker adversarial tests
         entry: python3 -I -m unittest discover -s tests/governance -t . -q
