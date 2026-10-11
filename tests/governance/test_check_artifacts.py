@@ -475,6 +475,17 @@ class NeverCrash(ArtifactCase):
 
 
 class ClaimRules(ArtifactCase):
+    def setUp(self) -> None:
+        super().setUp()
+        # Explicit fixture claim: the live claims list changes as tasks merge.
+        self.edit(STATE, lambda d: d.update(claims=[{
+            "task": "AO-P1-005", "owner": "w4-governance-tooling",
+            "paths": ["scripts/check-artifacts.py", "tests/governance/test_check_artifacts.py",
+                      "tests/governance/test_workflow.py", "docs/phases/P1-tasks"]}]))
+
+    def test_fixture_claim_passes(self) -> None:
+        self.assertEqual(run_inprocess(self.root)[0], 0)
+
     def test_claim_for_unknown_task(self) -> None:
         self.edit(STATE, lambda d: d["claims"].append({"task": "AO-P1-008", "owner": "rogue", "paths": ["rogue"]}))
         self.assertFails("claim AO-P1-008: no task contract")
