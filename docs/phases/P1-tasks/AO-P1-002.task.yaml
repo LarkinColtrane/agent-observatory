@@ -1,0 +1,36 @@
+task_id: AO-P1-002
+title: Backend core - logging, errors, API app factory
+phase: P1
+owner: w1-backend-core
+reviewers:
+  independent: reviewer-a
+  specialist: [security]
+depends_on: [AO-P1-001]
+blocks: [AO-P1-006]
+objective: >
+  Implement core.logging, core.errors and observatory.api exactly per ADR-0005 section 3.
+inputs:
+  frozen_contracts: [docs/adr/0005-phase-1-foundation-contract.md@contract-phase1-foundation-v1.0.0]
+  adrs: [docs/adr/0005-phase-1-foundation-contract.md]
+  assumptions: []
+owned_paths:
+  - backend/src/observatory/core/logging.py
+  - backend/src/observatory/core/errors.py
+  - backend/src/observatory/api
+  - backend/tests/unit
+read_only_paths: [backend/src/observatory/core/config.py, backend/src/observatory/core/health.py, backend/tests/unit/test_config.py, backend/tests/unit/test_health.py]
+hotspots: []
+allocated_ids: {assumptions: [A-009], debt: [TD-012]}
+out_of_scope: [product endpoints, db or cache imports from api]
+acceptance_criteria:
+  - {id: AC1, statement: logging redaction covers substring and case-insensitive keys, nested values, URL credentials and tracebacks, verified_by: pytest tests/unit}
+  - {id: AC2, statement: "request id accepted only on fullmatch of [A-Za-z0-9-]{8,64}", verified_by: pytest tests/unit}
+  - {id: AC3, statement: readyz 503 rules and error bodies match ADR-0005, verified_by: pytest tests/unit}
+testing:
+  level_1: cd backend && .venv/bin/ruff check . && .venv/bin/ruff format --check . && .venv/bin/mypy && .venv/bin/lint-imports
+  level_2: cd backend && .venv/bin/pytest tests/unit -q
+  adversarial_cases: [secret keys in nested extras, credential URL in traceback, malformed X-Request-ID]
+security_notes: logging redaction is mandatory; 500 responses carry no exception text.
+failure_mode: unhandled errors return generic internal_error; readiness fails closed.
+rollback: revert commit; no migration.
+budget: {max_agent_turns: 80, escalate_if: frozen signature must change}

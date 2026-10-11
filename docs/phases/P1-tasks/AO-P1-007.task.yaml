@@ -1,0 +1,30 @@
+task_id: AO-P1-007
+title: Level 3 gate from a clean clone
+phase: P1
+owner: validation-agent
+reviewers:
+  independent: [reviewer-a, reviewer-b]
+  specialist: []
+depends_on: [AO-P1-006]
+blocks: []
+objective: >
+  Execute every Level 3 gate item from a clean clone and write the gate report.
+inputs:
+  frozen_contracts: [docs/adr/0005-phase-1-foundation-contract.md@contract-phase1-foundation-v1.0.0]
+  adrs: [docs/adr/0005-phase-1-foundation-contract.md]
+  assumptions: []
+owned_paths: [docs/phases/P1-gate-report.md]
+read_only_paths: [backend, frontend, scripts, .github]
+hotspots: []
+allocated_ids: {assumptions: [], debt: []}
+out_of_scope: [code changes]
+acceptance_criteria:
+  - {id: AC1, statement: every Level 3 item executed including failure injection (DB or Redis down, bad request ids, bad config), verified_by: docs/phases/P1-gate-report.md}
+testing:
+  level_1: n/a
+  level_2: n/a
+  adversarial_cases: [database down, redis down, malformed request id, bad configuration]
+security_notes: none
+failure_mode: gate stays open on any failed item.
+rollback: n/a (report only)
+budget: {max_agent_turns: 60, escalate_if: any gate item cannot run}

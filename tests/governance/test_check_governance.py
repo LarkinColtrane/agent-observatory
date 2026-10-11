@@ -489,9 +489,12 @@ class TestGovernanceState(CheckerCase):
         self.pending_review()
         self.record_verdicts("APPROVE", "APPROVE")
         self.approve_contract(status="frozen")
+        state = yaml.safe_load((self.tmp / self.STATE).read_text(encoding="utf-8"))
+        version = next(c["version"] for c in state["contracts"] if c["id"] == "task-contract")
+        tag = f"contract-task-contract-v{version}"
         self.edit(self.STATE, "status: frozen\n    reviewed_by: [reviewer-a, reviewer-b]\n    tag: null",
-                  "status: frozen\n    reviewed_by: [reviewer-a, reviewer-b]\n    tag: contract-task-contract-v1.1.0")
-        self.assertFails(r"frozen tag 'contract-task-contract-v1\.1\.0' does not exist as an annotated git tag")
+                  f"status: frozen\n    reviewed_by: [reviewer-a, reviewer-b]\n    tag: {tag}")
+        self.assertFails(rf"frozen tag '{re.escape(tag)}' does not exist as an annotated git tag")
 
     def test_invalid_contract_status(self) -> None:
         self.pending_review()

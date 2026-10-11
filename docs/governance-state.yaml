@@ -79,7 +79,8 @@ contracts:
   - id: task-contract
     review_record: docs/reviews/pre-phase-1-review-resolution.md
     path: docs/agent-task-contract.md
-    version: 1.1.0
+    # 1.1.1: owned_paths are normalised prefixes (R-B-005-09/-14, docs/reviews/phase-1-task-reviews.md).
+    version: 1.1.1
     status: approved
     reviewed_by: [reviewer-a, reviewer-b]
     tag: null
@@ -116,11 +117,10 @@ contracts:
 # Active path claims (coordinator records at assignment, releases at integration).
 # Each: {task: AO-P<n>-<seq>, owner: <agent>, paths: [<path prefix>, ...]}
 claims:
-  # AO-P1-001 released on merge of PR #3 (a8ea522).
+  # AO-P1-001 released on merge of PR #3 (a8ea522); AO-P1-005 released with PR #5.
   - {task: AO-P1-002, owner: w1-backend-core, paths: [backend/src/observatory/core/logging.py, backend/src/observatory/core/errors.py, backend/src/observatory/api, backend/tests/unit]}
   - {task: AO-P1-003, owner: w2-frontend, paths: [frontend]}
   - {task: AO-P1-004, owner: w3-data-containers, paths: [backend/src/observatory/db, backend/src/observatory/cache, backend/migrations, backend/alembic.ini, backend/tests/integration, backend/Dockerfile, backend/.dockerignore, compose.yaml, compose.env.example, deploy/postgres]}
-  - {task: AO-P1-005, owner: w4-governance-tooling, paths: [scripts/check-artifacts.py, tests/governance/test_check_artifacts.py, tests/governance/test_workflow.py, docs/phases/P1-tasks]}
 
 # Annotated tags to be created by .github/workflows/release-tags.yml on main
 # (ADR-0005 §7). Entries stay as the audit record; existing tags are never moved.

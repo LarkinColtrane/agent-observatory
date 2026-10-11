@@ -48,7 +48,7 @@ inputs:
   assumptions: [<assumption id>]     # from docs/assumptions.yaml
 
 owned_paths:                         # exclusive write scope
-  - <path or glob>
+  - <normalised path prefix: file or directory, no globs, no . or .. segments>
 read_only_paths:                     # explicitly may not modify
   - <path or glob>
 hotspots: []                         # single-file hotspots claimed this window (lockfile, compose, alembic head…)
