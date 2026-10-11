@@ -1,0 +1,31 @@
+task_id: AO-P1-003
+title: Frontend skeleton (Next.js, strict TypeScript)
+phase: P1
+owner: w2-frontend
+reviewers:
+  independent: reviewer-b
+  specialist: []
+depends_on: [AO-P1-001]
+blocks: [AO-P1-006]
+objective: >
+  Next.js App Router skeleton per ADR-0005 section 4, no product UI, no backend calls.
+inputs:
+  frozen_contracts: [docs/adr/0005-phase-1-foundation-contract.md@contract-phase1-foundation-v1.0.0]
+  adrs: [docs/adr/0005-phase-1-foundation-contract.md]
+  assumptions: []
+owned_paths: [frontend]
+read_only_paths: [backend]
+hotspots: [frontend/package.json, frontend/package-lock.json]
+allocated_ids: {assumptions: [A-010], debt: [TD-013]}
+out_of_scope: [product UI, backend calls]
+acceptance_criteria:
+  - {id: AC1, statement: lint typecheck format:check test build pass from npm ci with strict TS, verified_by: npm scripts}
+  - {id: AC2, statement: frontend Dockerfile builds, verified_by: docker build frontend}
+testing:
+  level_1: cd frontend && npm ci && npm run lint && npm run typecheck && npm run format:check
+  level_2: cd frontend && npm test && npm run build
+  adversarial_cases: [type error fails typecheck]
+security_notes: no secrets; npm audit high must be clean.
+failure_mode: n/a (static skeleton)
+rollback: revert commit.
+budget: {max_agent_turns: 60, escalate_if: dependency newer than cutoff needed}

@@ -1,0 +1,43 @@
+task_id: AO-P1-004
+title: Data and containers - db/cache seams, Alembic, compose
+phase: P1
+owner: w3-data-containers
+reviewers:
+  independent: [reviewer-a, reviewer-b]
+  specialist: [data-integrity, concurrency]
+depends_on: [AO-P1-001]
+blocks: [AO-P1-006]
+objective: >
+  Implement observatory.db and observatory.cache seams, empty Alembic baseline,
+  backend image and compose stack per ADR-0005 section 3.
+inputs:
+  frozen_contracts: [docs/adr/0005-phase-1-foundation-contract.md@contract-phase1-foundation-v1.0.0]
+  adrs: [docs/adr/0005-phase-1-foundation-contract.md]
+  assumptions: []
+owned_paths:
+  - backend/src/observatory/db
+  - backend/src/observatory/cache
+  - backend/migrations
+  - backend/alembic.ini
+  - backend/tests/integration
+  - backend/Dockerfile
+  - backend/.dockerignore
+  - compose.yaml
+  - compose.env.example
+  - deploy/postgres
+read_only_paths: [backend/src/observatory/core/config.py, backend/src/observatory/core/health.py]
+hotspots: [compose.yaml, alembic head]
+allocated_ids: {assumptions: [A-011], debt: [TD-014]}
+out_of_scope: [product tables]
+acceptance_criteria:
+  - {id: AC1, statement: upgrade-downgrade-upgrade on Postgres 16 with exactly one head, verified_by: integration tests}
+  - {id: AC2, statement: database and redis checks fail closed, verified_by: integration tests}
+  - {id: AC3, statement: compose stack healthy for postgres redis backend with non-root images and separate migration vs app roles, verified_by: docker compose up + health}
+testing:
+  level_1: cd backend && .venv/bin/ruff check . && .venv/bin/mypy
+  level_2: cd backend && .venv/bin/pytest tests/integration -q
+  adversarial_cases: [database down, redis down, missing integration URL under AO_REQUIRE_INTEGRATION=1]
+security_notes: DB URLs are secrets; app role is DML-only.
+failure_mode: readiness reports database/redis not ok; app keeps serving healthz.
+rollback: revert commit; baseline migration is empty.
+budget: {max_agent_turns: 80, escalate_if: frozen signature must change}

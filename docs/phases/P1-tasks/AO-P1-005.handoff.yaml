@@ -1,0 +1,56 @@
+task_id: AO-P1-005
+from: w4-governance-tooling
+to: coordinator
+status: complete
+commit: 055b41b
+branch: p1/005-governance-tooling
+summary: >
+  Adds scripts/check-artifacts.py, which validates task contracts, handoffs and
+  claims against the task and handoff contracts (repays TD-006), and
+  tests/governance/test_workflow.py, which checks the ADR-0005 section 5
+  aggregator by executing its step against synthetic job results. Task
+  contracts AO-P1-001..007 transcribe docs/phases/P1-plan.md.
+inspected:
+  - docs/adr/0005-phase-1-foundation-contract.md
+  - docs/agent-task-contract.md
+  - docs/agent-handoff-contract.md
+  - docs/phases/P1-plan.md
+  - docs/governance-state.yaml
+  - scripts/check-governance.py
+searched_for_reuse:
+  - query: existing YAML validation and exit-code conventions in scripts/
+    result: reused check-governance.py conventions (exit 0/1/2, clean messages, PyYAML safe loading); no shared validator existed.
+changes:
+  - {path: scripts/check-artifacts.py, kind: added, note: task/handoff/claim validator}
+  - {path: tests/governance/test_check_artifacts.py, kind: added, note: 80 adversarial and regression tests}
+  - {path: tests/governance/test_workflow.py, kind: added, note: behavioural aggregator test plus trigger/permission/continue-on-error rules}
+  - {path: docs/phases/P1-tasks, kind: added, note: task contracts AO-P1-001..007 and this handoff}
+contracts:
+  consumed: [docs/adr/0005-phase-1-foundation-contract.md@contract-phase1-foundation-v1.0.0]
+  changed: []
+acceptance_criteria:
+  - {id: AC1, met: true, evidence: "test_check_artifacts: 80 tests OK (each rule broken once, hostile YAML, Reviewer B cases R-B-005-03..07, -10)"}
+  - {id: AC2, met: true, evidence: "test_workflow: 27 tests OK; the p1/006 workflow passes the executed aggregator test, Reviewer B counterexamples C1-C6 rejected"}
+checks:
+  - level: L1
+    command: python3 -I scripts/check-artifacts.py
+    ran: true
+    result: pass
+    evidence: "PASS (P1-tasks: 7 tasks)"
+  - level: L2
+    command: python3 -I -m unittest discover -s tests/governance -t . -v
+    ran: true
+    result: pass
+    evidence: "Ran 203 tests OK (skipped=1: pre-aggregation workflow, removed in AO-P1-006)"
+  - level: L2
+    command: python3 -I scripts/check-governance.py
+    ran: true
+    result: pass
+    evidence: PASS
+risks_and_open_questions:
+  - The aggregator test accepts only the toJSON(needs) step shape; restyling the aggregator must keep that shape.
+new_assumptions: []
+new_debt: []
+specialist_review_needed: []
+rollback: Revert the squash commit; no other component depends on the checker at runtime.
+next_steps: AO-P1-006 removes the pre-aggregation skip once the multi-job workflow is on main.
