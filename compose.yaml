@@ -1,4 +1,4 @@
-# Agent Observatory local stack (ADR-0005 §1; AO-P1-004).
+# Agent Observatory local stack (ADR-0005 §1; AO-P1-004, frontend service AO-P1-006).
 #
 #   cp compose.env.example .env   # .env is git-ignored; replace EVERY <change-me-...> value
 #   docker compose up --build
@@ -106,6 +106,25 @@ services:
         condition: service_healthy
       migrate:
         condition: service_completed_successfully
+    restart: unless-stopped
+
+  frontend:
+    <<: *hardening
+    build: ./frontend
+    image: agent-observatory/frontend:local
+    # Next's runtime cache is the only writable path (the image keeps the app
+    # files root-owned); the root filesystem stays read-only.
+    tmpfs:
+      - /tmp
+      - /app/.next/cache:uid=1001,gid=1001
+    ports:
+      - "127.0.0.1:3000:3000"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
     restart: unless-stopped
 
 volumes:

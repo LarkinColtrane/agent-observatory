@@ -130,3 +130,17 @@ assumptions:
     review_phase: P1
     validation_plan: Reviewer A and Reviewer B rule on ADR-0006 at the AO-P1-006 review; re-check at each phase gate that every recorded exception has lapsed or is still the minimal fix.
     recorded: 2026-10-11
+  - id: A-011
+    statement: >
+      libpq/psycopg treat connect_timeout values below 2 s as 2 s, so the
+      database probe's effective connect bound is 2 s (equal to the readiness
+      deadline), not the 1 s named in ADR-0005 section 3; readiness stays
+      fail-closed because run_checks enforces the overall deadline.
+    confidence: high
+    status: validated
+    owner: reviewer-b
+    affects: [C11]
+    review_phase: P1
+    validation_plan: Observed by Reviewers A and B against a black-hole server (OperationalError at 2.0 s; ok=False at the 2.0 s run_checks deadline).
+    recorded: 2026-10-11
+

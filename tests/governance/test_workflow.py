@@ -184,9 +184,8 @@ class RealWorkflow(unittest.TestCase):
         self.assertEqual(continue_on_error_problems(self.wf), [])
 
     def test_aggregator_rule(self) -> None:
-        if list(self.wf.get("jobs") or {}) == [AGGREGATOR]:
-            self.skipTest("pre-aggregation: governance.yml has a single 'governance' job; the ADR-0005 "
-                          "section 5 aggregator assertions apply once AO-P1-006 adds the other jobs")
+        # No pre-aggregation escape hatch (R-B-005-08): the aggregator must gate real jobs.
+        self.assertGreater(len(self.wf.get("jobs") or {}), 1, "governance.yml must have jobs besides the aggregator")
         self.assertEqual(aggregator_problems(self.wf), [])
 
 

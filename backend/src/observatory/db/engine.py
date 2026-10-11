@@ -47,7 +47,7 @@ def to_psycopg_url(value: SecretStr | None, *, setting: str) -> URL:
         problem = f"{setting} is not a valid database URL"
     if url is not None and url.drivername not in _ACCEPTED_DRIVERNAMES:
         problem = f"{setting} must use the postgresql or {DRIVERNAME} scheme"
-    elif url is not None and "@" in (url.host or ""):
+    elif url is not None and ("@" in (url.host or "") or "@" in (url.username or "")):
         problem = f"{setting}: password must be percent-encoded"
     if problem is not None or url is None:
         # Raised outside the except block: no __context__ reference to the original error.

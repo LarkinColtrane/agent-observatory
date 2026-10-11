@@ -23,12 +23,12 @@ Safety properties:
 from __future__ import annotations
 
 import re
-from logging.config import fileConfig
 
 from alembic import context
 from sqlalchemy import create_engine, pool
 
 from observatory.core.config import get_settings
+from observatory.core.logging import configure_logging
 from observatory.db import to_psycopg_url
 from observatory.db.migration import DEFAULT_LOCK_TIMEOUT, MIGRATION_LOCK_KEY, VERSION_TABLE_SCHEMA
 
@@ -37,8 +37,10 @@ _LOCK_TIMEOUT_RE = re.compile(r"[1-9][0-9]{0,6}(ms|s|min)")
 
 config = context.config
 
-if config.config_file_name is not None and config.attributes.get("configure_logging", True):
-    fileConfig(config.config_file_name, disable_existing_loggers=False)
+# Alembic and SQLAlchemy records go through the application's redacting handler
+# (review R-A-004-11), not a plain logging.config handler from alembic.ini.
+if config.attributes.get("configure_logging", True):
+    configure_logging(get_settings())
 
 if config.get_main_option("sqlalchemy.url"):
     raise RuntimeError("sqlalchemy.url must not be set in alembic.ini; use AO_MIGRATION_DATABASE_URL")

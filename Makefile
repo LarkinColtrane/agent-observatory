@@ -13,7 +13,7 @@ help:
 	@echo "setup             install backend (uv.lock) and frontend (package-lock.json) deps"
 	@echo "check             governance + backend + frontend static checks and unit tests"
 	@echo "test-integration  backend integration tests (needs AO_TEST_* URLs; see compose.env.example)"
-	@echo "up / down         start / stop the local stack (needs compose.env)"
+	@echo "up / down         start / stop the local stack (needs .env from compose.env.example)"
 
 setup:
 	cd $(BACKEND) && uv sync --locked --python $(PYTHON)
@@ -33,7 +33,7 @@ backend-check:
 	$(UV_RUN)/bandit -q -r src
 
 frontend-check:
-	cd $(FRONTEND) && npm run lint && npm run typecheck && npm run format:check && npm test -- --run
+	cd $(FRONTEND) && npm run lint && npm run typecheck && npm run format:check && npm test
 
 check: governance backend-check frontend-check
 
@@ -43,7 +43,7 @@ test-integration:
 	cd $(BACKEND) && AO_REQUIRE_INTEGRATION=1 .venv/bin/pytest -m integration -q
 
 up:
-	docker compose --env-file compose.env up -d --build --wait
+	docker compose up -d --build --wait
 
 down:
-	docker compose --env-file compose.env down -v
+	docker compose down -v

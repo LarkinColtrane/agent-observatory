@@ -82,6 +82,16 @@ def test_engine_rejects_bad_urls_without_echoing_them(bad: str) -> None:
     _assert_sanitized(excinfo.value, PW, bad)
 
 
+def test_unencoded_at_in_username_is_rejected() -> None:
+    """Review R-A-004-202: a forgotten ':' must not move a password fragment into the username."""
+    raw = "postgresql://" + "ao_app@" + PW + "@db.invalid:5432/observatory"
+    with pytest.raises(
+        ConfigurationError, match="AO_DATABASE_URL: password must be percent-encoded"
+    ) as excinfo:
+        create_engine(make_settings(database_url=raw))
+    _assert_sanitized(excinfo.value, PW, raw)
+
+
 def test_unencoded_at_in_password_is_rejected() -> None:
     """Review R-A-004-02: an unencoded '@' would put the password tail into the host."""
     raw = creds_url("postgresql", "ao_app", PW + "@tail", "db.invalid:5432/observatory")

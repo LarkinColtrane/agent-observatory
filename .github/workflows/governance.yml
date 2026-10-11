@@ -21,7 +21,7 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
-  UV_VERSION: "0.11.32"
+  UV_VERSION: "0.12.18"
   PYTHON_VERSION: "3.12"
 
 jobs:
@@ -110,7 +110,54 @@ jobs:
           enable-cache: false
       - name: Install (strictly from uv.lock)
         run: uv sync --locked --python "${PYTHON_VERSION}"
-      # INTEGRATION-STEPS (finalised from the AO-P1-004 handoff)
+      - name: Throwaway credentials (generated per run, masked)
+        run: |
+          for name in AO_PG_SUPERUSER_PASSWORD AO_PG_MIGRATION_PASSWORD AO_PG_APP_PASSWORD; do
+            value="$(python3 -c 'import secrets; print(secrets.token_hex(24))')"
+            echo "::add-mask::${value}"
+            echo "${name}=${value}" >> "$GITHUB_ENV"
+          done
+      - name: Start PostgreSQL (roles via deploy/postgres/init) and Redis
+        working-directory: .
+        run: |
+          # Values reach containers by variable name only (-e NAME), never on a command line.
+          POSTGRES_PASSWORD="$AO_PG_SUPERUSER_PASSWORD" docker run -d --name ao-pg -p 127.0.0.1:5432:5432 \
+            -e POSTGRES_PASSWORD -e AO_PG_MIGRATION_PASSWORD -e AO_PG_APP_PASSWORD -e AO_PG_DATABASE=observatory \
+            -v "$PWD/deploy/postgres/init:/docker-entrypoint-initdb.d:ro" postgres:16.10-alpine
+          docker run -d --name ao-redis -p 127.0.0.1:6379:6379 redis:7.4.11-alpine redis-server --save "" --appendonly no
+          for _ in $(seq 60); do
+            docker exec ao-pg pg_isready -q -h 127.0.0.1 -U postgres -d observatory \
+              && [ "$(docker exec ao-redis redis-cli ping)" = PONG ] && exit 0
+            sleep 1
+          done
+          docker logs ao-pg 2>&1 | tail -50; exit 1
+      - name: Test service URLs
+        run: |
+          # Userinfo is passed as one argument so no credential-shaped URL appears in this file.
+          url() { printf 'postgresql+psycopg://%s@127.0.0.1:5432/observatory' "$1"; }
+          {
+            echo "AO_TEST_DATABASE_URL=$(url "ao_app:${AO_PG_APP_PASSWORD}")"
+            echo "AO_TEST_MIGRATION_DATABASE_URL=$(url "ao_migrator:${AO_PG_MIGRATION_PASSWORD}")"
+            echo "AO_TEST_REDIS_URL=redis://127.0.0.1:6379/0"
+          } >> "$GITHUB_ENV"
+      - name: Alembic upgrade -> downgrade -> upgrade (migration role)
+        env:
+          AO_ENV: test
+        run: |
+          export AO_MIGRATION_DATABASE_URL="$AO_TEST_MIGRATION_DATABASE_URL"
+          .venv/bin/alembic upgrade head
+          .venv/bin/alembic downgrade base
+          .venv/bin/alembic upgrade head
+      - name: Exactly one Alembic head
+        run: test "$(.venv/bin/alembic heads | wc -l)" -eq 1
+      - name: All backend tests with real services + coverage floor (no silent skips)
+        env:
+          AO_REQUIRE_INTEGRATION: "1"
+        run: .venv/bin/pytest -q --cov
+      - name: Stop services
+        if: always()
+        working-directory: .
+        run: docker rm -f ao-pg ao-redis || true
 
   frontend:
     runs-on: ubuntu-24.04
@@ -136,11 +183,13 @@ jobs:
       - name: Format
         run: npm run format:check
       - name: Tests
-        run: npm test -- --run
+        run: npm test
       - name: Build
         run: npm run build
       - name: Dependency audit (high and above)
         run: npm audit --audit-level=high
+      - name: Registry signatures and provenance (ADR-0006)
+        run: npm audit signatures
 
   containers:
     runs-on: ubuntu-24.04
@@ -149,7 +198,40 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      # CONTAINER-STEPS (finalised from the AO-P1-004 handoff)
+      - name: Throwaway .env for compose (generated per run, masked)
+        run: |
+          umask 077
+          echo "AO_ENV=dev" > .env
+          for name in AO_PG_SUPERUSER_PASSWORD AO_PG_MIGRATION_PASSWORD AO_PG_APP_PASSWORD; do
+            value="$(python3 -c 'import secrets; print(secrets.token_hex(24))')"
+            echo "::add-mask::${value}"
+            echo "${name}=${value}" >> .env
+          done
+      - name: Validate compose file
+        run: docker compose config -q
+      - name: Build and start the stack (waits for every healthcheck)
+        run: docker compose up -d --build --wait --wait-timeout 300
+      - name: Smoke test (health, readiness with real services, version, frontend headers)
+        run: |
+          curl -fsS http://127.0.0.1:8000/healthz
+          ready="$(curl -fsS http://127.0.0.1:8000/readyz)"; echo "$ready"
+          python3 -I -c 'import json,sys; b=json.loads(sys.argv[1]); assert b["status"]=="ready" and [c["name"] for c in b["checks"]]==["database","redis"], b' "$ready"
+          curl -fsS http://127.0.0.1:8000/version
+          headers="$(curl -fsSI http://127.0.0.1:3000/)"; echo "$headers"
+          echo "$headers" | grep -qi '^content-security-policy:.*frame-ancestors .none.'
+          echo "$headers" | grep -qi '^x-content-type-options: nosniff'
+          if echo "$headers" | grep -qi '^x-powered-by'; then echo 'X-Powered-By present'; exit 1; fi
+      - name: Containers run as non-root
+        run: |
+          for svc in backend frontend; do
+            uid="$(docker compose exec -T "$svc" id -u)"; echo "$svc uid=$uid"; [ "$uid" != 0 ]
+          done
+      - name: Logs on failure
+        if: failure()
+        run: docker compose logs --no-color --tail 200
+      - name: Tear down
+        if: always()
+        run: docker compose down -v --remove-orphans
 
   # Single required status check. Fails unless every job above succeeded.
   governance:
