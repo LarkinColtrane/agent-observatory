@@ -1,0 +1,38 @@
+task_id: AO-P1-006
+title: Integration - composition root and CI aggregator
+phase: P1
+owner: coordinator
+reviewers:
+  independent: [reviewer-a, reviewer-b]
+  specialist: [architecture]
+depends_on: [AO-P1-002, AO-P1-003, AO-P1-004, AO-P1-005]
+blocks: [AO-P1-007]
+objective: >
+  Compose main.py, add all CI jobs and the governance aggregator, pre-commit hooks.
+inputs:
+  frozen_contracts: [docs/adr/0005-phase-1-foundation-contract.md@contract-phase1-foundation-v1.0.0]
+  adrs: [docs/adr/0005-phase-1-foundation-contract.md]
+  assumptions: []
+owned_paths:
+  - backend/src/observatory/main.py
+  - Makefile
+  - .github/workflows/governance.yml
+  - .pre-commit-config.yaml
+  - .gitignore
+  - requirements-governance.in
+  - requirements-governance.txt
+read_only_paths: [frontend, backend/src/observatory/api]
+hotspots: [.github/workflows/governance.yml, .pre-commit-config.yaml]
+allocated_ids: {assumptions: [], debt: []}
+out_of_scope: [product behaviour]
+acceptance_criteria:
+  - {id: AC1, statement: all CI jobs green, verified_by: CI run on main}
+  - {id: AC2, statement: aggregator governance fails on any failed skipped or cancelled job, verified_by: tests/governance/test_workflow.py}
+testing:
+  level_1: make check
+  level_2: full L2 (backend integration, frontend, containers)
+  adversarial_cases: [one job failing, one job skipped]
+security_notes: workflow permissions default read-only.
+failure_mode: aggregator fails closed.
+rollback: revert the merge.
+budget: {max_agent_turns: 80, escalate_if: integration conflicts with frozen contract}

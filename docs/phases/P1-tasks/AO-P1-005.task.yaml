@@ -1,0 +1,36 @@
+task_id: AO-P1-005
+title: Governance tooling - task/handoff validation, aggregator test
+phase: P1
+owner: w4-governance-tooling
+reviewers:
+  independent: reviewer-b
+  specialist: []
+depends_on: [AO-P1-001]
+blocks: [AO-P1-006]
+objective: >
+  Machine-validate task contracts and handoffs (repays TD-006) and test the CI
+  aggregator rule of ADR-0005 section 5.
+inputs:
+  frozen_contracts: [docs/adr/0005-phase-1-foundation-contract.md@contract-phase1-foundation-v1.0.0]
+  adrs: [docs/adr/0005-phase-1-foundation-contract.md]
+  assumptions: []
+owned_paths:
+  - scripts/check-artifacts.py
+  - tests/governance/test_check_artifacts.py
+  - tests/governance/test_workflow.py
+  - docs/phases/P1-tasks
+read_only_paths: [scripts/check-governance.py, .github/workflows, .pre-commit-config.yaml]
+hotspots: []
+allocated_ids: {assumptions: [A-012], debt: [TD-015]}
+out_of_scope: [wiring into CI or pre-commit (AO-P1-006)]
+acceptance_criteria:
+  - {id: AC1, statement: invalid (ran result) combos, missing fields and unknown claims are rejected, verified_by: tests/governance/test_check_artifacts.py}
+  - {id: AC2, statement: aggregator needs covers every job, success-only, no paths filters, verified_by: tests/governance/test_workflow.py}
+testing:
+  level_1: python3 -I scripts/check-artifacts.py
+  level_2: python3 -I -m unittest discover -s tests/governance -t . -v
+  adversarial_cases: [each rule broken once, malformed YAML, unknown task in handoff]
+security_notes: parses repository YAML with safe_load only.
+failure_mode: checker exits 1 with clean messages, never a traceback.
+rollback: revert commit.
+budget: {max_agent_turns: 40, escalate_if: scope > owned_paths}
