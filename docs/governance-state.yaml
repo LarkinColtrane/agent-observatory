@@ -49,7 +49,7 @@ phases:
   - {id: P8, name: 2D virtual office, status: not_started, blocked_by: []}
   - {id: P9, name: External integrations, status: not_started, blocked_by: []}
   - {id: P10, name: Control room / workflow graph, status: not_started, blocked_by: []}
-  - {id: P11, name: Production hardening, status: not_started, blocked_by: [TD-019, TD-020, TD-021, TD-023]}
+  - {id: P11, name: Production hardening, status: not_started, blocked_by: [TD-019, TD-020, TD-021, TD-023, TD-026]}
 
 components:
   - {id: C1, name: Event protocol}
@@ -108,9 +108,12 @@ contracts:
     reviewed_by: [reviewer-a, reviewer-b]
     tag: contract-phase1-foundation-v1.0.0
   - id: event-protocol
-    path: null
-    version: null
-    status: not_drafted
+    review_record: docs/reviews/phase-2-reviews.md
+    path: docs/adr/0008-universal-event-protocol.md
+    version: 1.0.0
+    status: in_review
+    reviewed_by: []
+    tag: null                           # frozen at the end of P2 (ADR-0003 §3), freeze scope in docs/phases/P2-plan.md
     not_before_phase: P2
   - id: adapter-interface
     path: null

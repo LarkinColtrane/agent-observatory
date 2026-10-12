@@ -386,3 +386,18 @@ debt:
     blocks: [P6]
     repayment_trigger: Restore the Next ESLint plugin once a release without a vulnerable braces chain exists (or braces ships a fix), with the full npm audit still clean.
     recorded: 2026-10-11
+  - id: TD-026
+    title: Event secret scan does not fold cross-script homoglyphs
+    description: >
+      ADR-0008 section 10.3 scans every string and its NFKC form, and section 10.2
+      rejects the enumerated invisible characters. NFKC does not fold cross-script
+      confusables, so a key such as "p<Cyrillic a>ssword=X" evades the text tier
+      (review R-A-P2-002-03). Credential-shaped values (PEM, JWT, key prefixes,
+      bearer) are still detected. Rejected events are never stored raw.
+    severity: low
+    status: open
+    owner: reviewer-a
+    component: C1
+    blocks: [P11]
+    repayment_trigger: A security patch release of the event secret rules (ADR-0008 section 16 exception) adds a pinned confusables skeleton (Unicode TR39) for key names, signed off by Reviewer A.
+    recorded: 2026-10-12

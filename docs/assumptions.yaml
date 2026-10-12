@@ -143,3 +143,20 @@ assumptions:
     review_phase: P1
     validation_plan: Reviewer B observed OperationalError at 2.0 s against a black-hole server; Reviewer A observed the black-hole check completing within the readiness deadline (under 2.5 s).
     recorded: 2026-10-11
+  - id: A-013
+    statement: >
+      Every layer that consumes event text treats it as data. Views escape
+      it as plain text and show agent_id next to display_name. Markdown
+      renderers render it as plain text. CSV and spreadsheet exports
+      neutralise leading =, +, - and @. Any model that reads event text
+      receives it as quoted data, never as instructions. The protocol keeps
+      HTML, script and markup in free-text fields verbatim and rejects only
+      the enumerated invisible, control and bidi characters (ADR-0008
+      section 10).
+    confidence: medium
+    status: open
+    owner: reviewer-a
+    affects: [C8, C9, C10]
+    review_phase: P6
+    validation_plan: P6 review checks every rendering, export and model-consumption path, with XSS, Markdown and CSV-formula tests that feed the reference trace plus markup-bearing fixtures through each.
+    recorded: 2026-10-12
