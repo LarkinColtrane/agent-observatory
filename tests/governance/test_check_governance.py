@@ -216,7 +216,7 @@ class TestGovernanceState(CheckerCase):
     STATE = "docs/governance-state.yaml"
 
     def test_phase_reorder_rejected(self) -> None:
-        self.edit(self.STATE, "{id: P2, name: Universal agent event protocol,", "{id: P2, name: Adapter / SDK layer,")
+        self.set_phase("P2", name="Adapter / SDK layer")
         self.assertFails(r"canonical order and names")
 
     def test_unknown_phase_status(self) -> None:
@@ -224,7 +224,8 @@ class TestGovernanceState(CheckerCase):
         self.assertFails(r"phase P3: invalid status 'wibble'")
 
     def test_phase_cannot_start_before_predecessor_closed(self) -> None:
-        self.edit(self.STATE, "{id: P2, name: Universal agent event protocol, status: not_started", "{id: P2, name: Universal agent event protocol, status: in_progress")
+        # Explicit fixture state: the live P2 status changes as phases progress.
+        self.set_phase("P2", status="in_progress", plan="docs/phases/P1-plan.md", blocked_by=[])
         self.set_phase("P1", status="not_started")
         self.assertFails(r"phase P2: is 'in_progress' but P1 is not closed")
         self.set_phase("P1", status="in_progress")
@@ -448,6 +449,8 @@ class TestGovernanceState(CheckerCase):
         self.assertFails(r"blocked_by 'TD-003' is not open debt", r"unknown debt 'TD-999'")
 
     def test_event_protocol_cannot_be_drafted_before_p2(self) -> None:
+        self.set_phase("P2", status="not_started")  # explicit: the live register has P2 open
+        self.set_claims([])
         self.edit(self.STATE, "  - id: event-protocol\n    path: null\n    version: null\n    status: not_drafted",
                   "  - id: event-protocol\n    path: docs/roadmap.md\n    version: 1.0.0\n    status: frozen\n    reviewed_by: [reviewer-a, reviewer-b]")
         self.assertFails(r"contract event-protocol: is 'frozen' but may not be drafted before P2 starts")

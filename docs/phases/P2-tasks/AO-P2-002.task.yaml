@@ -6,7 +6,7 @@ reviewers:
   independent: [reviewer-a, reviewer-b]
   specialist: [security]
 depends_on: [AO-P2-001]
-blocks: [AO-P2-003]
+blocks: []
 objective: >
   Write the provider-neutral event protocol v1 contract (envelope, taxonomy,
   identity, hierarchy, tasks, causality, time and ordering, usage, extensions,
