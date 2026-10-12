@@ -207,6 +207,9 @@ and the payload names the new agent.
     there without changing stream order.
   - An emitter that observes events in order should assign `stream_id` and
     `seq` even when the provider has none, and the P3 SDK must.
+  - An emitter assigns `seq` only to an event that has passed
+    `validate_event`. A gap therefore means loss in transport or a dropped
+    event.
 - **Canonical order.** `canonical_order(events)` takes events of one
   workspace with unique `event_id`s; a duplicate `event_id` or more than one
   workspace raises `ValueError`. Classify duplicates first (§15). The order
@@ -331,7 +334,9 @@ Unicode categories, so it does not change with the Unicode version.
 - Noncharacters and private use: U+FDD0–U+FDEF, every U+nFFFE–U+nFFFF,
   U+E0000–U+E0FFF, surrogates, U+E000–U+F8FF, and planes 15–16.
 
-TAB and LF are allowed only in Text fields that say so; none do in v1.
+TAB and LF are never allowed in keys (`forbidden_character`). In a v1 Text
+field they break the single-line rule (`schema_violation`). No v1 Text field
+is multi-line.
 
 HTML, script and markup are **data**: they are kept verbatim and never
 interpreted. Renderers must escape them (A-013).
@@ -404,7 +409,9 @@ U+FDFA.
 - headers, cookies, credentials.
 
 `command` is a single line of at most 1024 characters. Adapters emit the
-command up to its first newline or heredoc marker, followed by ` [TRUNCATED]`.
+command up to its first newline or heredoc marker, then apply this order:
+sanitise, truncate to fit, append ` [TRUNCATED]` when cut, and sanitise again.
+A cut can therefore never leave half a secret or half a `[REDACTED]`.
 
 ### 10.5 RelPath
 
@@ -437,7 +444,11 @@ Ingestion policy (P4) works within these limits:
 - It may only reject events, or remove whole optional `sensitive-*` fields
   **before** acceptance. Extension values are removed only as whole
   `extensions` namespaces, never one value at a time, and the event after
-  the policy is re-validated (checks 9–15) before acceptance.
+  the policy is re-validated (checks 9–15) before acceptance; if it fails,
+  the event is rejected. For an incoming event whose `event_id` already
+  exists, ingestion applies the stored event's `policy_id` before
+  `classify_duplicate`, so a policy change cannot turn a redelivery into a
+  conflict.
 - The fingerprint and duplicate rules then apply to the event after the
   policy, and the policy id is recorded in `RecordedEvent`.
 - A policy never edits a value in part.
@@ -518,8 +529,9 @@ every check whose disposition is quarantine runs after the secret scan.
 - A **quarantine record** is a drop record plus `raw_sha256` (the scan has
   passed; the residual risk of an undetected low-entropy secret behind this
   unkeyed digest is part of TD-026) and those of `workspace_id`, `event_id`, `event_type`,
-  `spec_version`, `source.provider` and `source.adapter` that individually
-  satisfy their own scalar rule. Nothing else is kept.
+  `spec_version`, `source.provider`, `source.adapter`, `source.stream_id` and
+  `source.seq` that individually satisfy their own scalar rule. Nothing else
+  is kept. Ingestion reports a quarantined stream slot as quarantined, not lost.
 - An `unsupported_version` event is not reprocessed. The emitter re-sends it
   after the upgrade.
 
@@ -529,7 +541,8 @@ every check whose disposition is quarantine runs after the secret scan.
 - For `secret_detected`, the pointer stops at the parent of the hit.
 - Pointers longer than the limit are cut at a segment boundary and end in `/…`.
 - When there are several schema errors, the reported one has the smallest
-  pointer by segment-wise code-point order.
+  pointer, compared segment by segment: array indices numerically, keys by
+  code point.
 - Rejections never echo values or unknown keys.
 
 **`validate_event(data)`** first checks that `data` is an acyclic tree whose
@@ -539,7 +552,12 @@ nodes have exactly the built-in types `dict` (with exact `str` keys), `list`,
 (`too_deep`) and canonical size ≤ 64 KiB (`too_large`), then runs checks 7–15.
 
 **Every `Event` instance has passed checks 9–15:** construction runs the
-secret scan too. `canonical_json`, `fingerprint`, `content_fingerprint`,
+secret scan too, using the current `SECRET_RULES_VERSION` unless the caller
+names another. An event loaded from the store is validated with the
+secret-rules version recorded at its acceptance (`RecordedEvent`). Every rules
+version is kept, as validators are, so a later rules patch never makes
+replay fail (A-002). A newer rules version is applied to stored events only
+by the explicit re-scan operation, whose hits become tombstones (§14). `canonical_json`, `fingerprint`, `content_fingerprint`,
 `classify_duplicate`, `stream_key` and `canonical_order` accept only exact
 `Event`s, with no subclasses, and re-validate them. `model_construct` is
 never used on protocol models.
@@ -571,14 +589,20 @@ canonical_json(e)`. JSON lines files hold one canonical event per line.
   signatures over the canonical bytes are possible later (P11) without
   changing the event format.
 - **`RecordedEvent`** is `{event, fingerprint, ingested_at: Timestamp,
-  ingest_seq: int ≥ 0, policy_id?: Code}`. It is assigned by ingestion (P4).
+  ingest_seq: int ≥ 0, secret_rules_version: int ≥ 1, policy_id?: Code}`. It is assigned by ingestion (P4).
   `ingest_seq` is unique and strictly increasing in commit order per
   workspace, and gaps are allowed.
 - **Security erasure overrides immutability.** A stored event found to hold
-  a secret or forbidden content is replaced by a tombstone `{event_id,
-  workspace_id, fingerprint, erased_at, reason_code}`. The original
-  fingerprint stays as evidence of what was erased. Replays treat a
-  tombstone as an event of unknown content. Erasure covers every copy of
+  a secret or forbidden content is replaced by a tombstone. The tombstone
+  keeps the original `fingerprint` and `content_fingerprint` as evidence of
+  what was erased, plus `erased_at` and `reason_code`. It also keeps every
+  identifier- and metadata-class field (§10.6) except `usage` and
+  `extensions`: `event_type`, `time.*`, the `scope.*` ids, `source.*` and
+  `causality.*`. Every `sensitive-*` field is dropped.
+  - Replays treat a tombstone as an event of unknown content.
+  - Canonical order and gap detection treat it at its original position.
+  - An incoming event whose `event_id` matches a tombstone is classified
+    against the tombstone's two fingerprints, and is never re-accepted. Erasure covers every copy of
   the event: projections, exports and trace files, caches, indexes, and
   backups within their retention. It is done only after the leaked
   credential has been rotated, because the kept fingerprint could otherwise
@@ -590,7 +614,9 @@ canonical_json(e)`. JSON lines files hold one canonical event per line.
 ## 15. Duplicates, and the boundary with ingestion
 
 `classify_duplicate(existing, incoming)` requires both events to be in the
-same workspace and raises `ValueError` otherwise. It returns one of four results:
+same workspace and raises `ValueError` otherwise. Ingestion calls it against
+the stored event with the same `event_id` and against the stored event at the
+same (stream key, `seq`). It returns the first match in this order of precedence:
 - `exact_duplicate`: same `event_id` and same `fingerprint`. A no-op.
 - `redelivery`: same `event_id` and same `content_fingerprint`. The same
   provider event was observed again (adapter restart, upgrade, re-read
@@ -598,11 +624,12 @@ same workspace and raises `ValueError` otherwise. It returns one of four results
 - `conflict`: same `event_id`, different content. The incoming event is
   rejected and quarantined (metadata only), the stored event is never
   replaced, and ingestion raises an alert attributed to the sending credential.
-- `distinct`: different `event_id`.
+- `sequence_conflict`: a different `event_id`, but the same stream key and
+  `seq`. Quarantined.
+- `distinct`: anything else.
 
-There is also `sequence_conflict`: the same stream key and `seq` with a
-different `event_id`. It is quarantined. An exact duplicate or a redelivery
-still consumes its (stream key, `seq`) for gap detection.
+`DuplicateKind` has exactly these five values. An exact duplicate or a
+redelivery still consumes its (stream key, `seq`) for gap detection.
 
 Phase 2 provides these pure functions, the stream key and the canonical
 order. Ingestion (P4) applies them against the store. Later phases must also:
