@@ -555,6 +555,7 @@ class TestGovernanceState(CheckerCase):
         self.assertFails(r"contract phase1-foundation v2\.0\.0 is not approved")
 
     def test_pending_tag_shape_and_phase_rules(self) -> None:
+        self.set_phase("P1", status="in_progress")  # fixture state, not the live register
         self.set_pending({"tag": "refs/heads/main", "commit": "self", "message": "m"},
                          {"tag": "contract-nope-v1.0.0", "commit": "HEAD", "message": ""},
                          {"tag": "phase-P1-v1.0.0", "commit": "self", "message": "m"})
