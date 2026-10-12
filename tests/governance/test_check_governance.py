@@ -114,6 +114,15 @@ class CheckerCase(unittest.TestCase):
             next(p for p in d["phases"] if p["id"] == pid).update(fields)
         self.update_state(apply)
 
+    def set_contract(self, cid: str, drop: tuple[str, ...] = (), **fields: Any) -> None:
+        """Set a contract entry's fields explicitly (independent of the live registry)."""
+        def apply(d: dict[str, Any]) -> None:
+            entry = next(c for c in d["contracts"] if c["id"] == cid)
+            entry.update(fields)
+            for key in drop:
+                entry.pop(key, None)
+        self.update_state(apply)
+
     def set_claims(self, claims: list[dict[str, Any]]) -> None:
         self.update_state(lambda d: d.__setitem__("claims", claims))
 
@@ -451,8 +460,8 @@ class TestGovernanceState(CheckerCase):
     def test_event_protocol_cannot_be_drafted_before_p2(self) -> None:
         self.set_phase("P2", status="not_started")  # explicit: the live register has P2 open
         self.set_claims([])
-        self.edit(self.STATE, "  - id: event-protocol\n    path: null\n    version: null\n    status: not_drafted",
-                  "  - id: event-protocol\n    path: docs/roadmap.md\n    version: 1.0.0\n    status: frozen\n    reviewed_by: [reviewer-a, reviewer-b]")
+        self.set_contract("event-protocol", path="docs/roadmap.md", version="1.0.0", status="frozen",
+                          reviewed_by=["reviewer-a", "reviewer-b"], not_before_phase="P2")
         self.assertFails(r"contract event-protocol: is 'frozen' but may not be drafted before P2 starts")
 
     def approve_contract(self, cid: str = "task-contract", status: str = "approved") -> None:
@@ -507,11 +516,11 @@ class TestGovernanceState(CheckerCase):
 
     def test_event_protocol_entry_cannot_be_removed(self) -> None:
         # Regression for B-17: deleting the entry must not lift the deferral.
-        self.edit(self.STATE, "  - id: event-protocol\n    path: null\n    version: null\n    status: not_drafted\n    not_before_phase: P2\n", "")
+        self.update_state(lambda d: d.__setitem__("contracts", [c for c in d["contracts"] if c["id"] != "event-protocol"]))
         self.assertFails(r"contract event-protocol: must be registered \(deferred to P2")
 
     def test_event_protocol_deferral_cannot_be_dropped(self) -> None:
-        self.edit(self.STATE, "    status: not_drafted\n    not_before_phase: P2", "    status: draft")
+        self.set_contract("event-protocol", drop=("not_before_phase",), status="draft")
         self.assertFails(r"contract event-protocol: not_before_phase must be P2")
 
     def drop_tag(self, tag: str) -> None:

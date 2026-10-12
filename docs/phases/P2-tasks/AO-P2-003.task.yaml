@@ -1,0 +1,43 @@
+task_id: AO-P2-003
+title: Event protocol core (envelope, identity, text safety, codec, validation, ordering, duplicates)
+phase: P2
+owner: w-p-protocol
+reviewers:
+  independent: [reviewer-a, reviewer-b]
+  specialist: [security]
+depends_on: [AO-P2-002]
+blocks: [AO-P2-004]
+objective: >
+  Implement observatory.events per ADR-0008 sections 2-7 and 10-17, except the
+  per-type payload models (AO-P2-004): scalar types, identity and derived
+  event ids, safe text, secret scan and paths, envelope models, bounded bytes
+  codec, validation pipeline with stable codes and dispositions, canonical
+  JSON, fingerprints, canonical order, stream key and duplicate classification.
+inputs:
+  frozen_contracts: []
+  adrs: [docs/adr/0008-universal-event-protocol.md, docs/adr/0007-typed-usage-telemetry-in-logs.md, docs/adr/0005-phase-1-foundation-contract.md]
+  assumptions: []
+owned_paths:
+  - backend/src/observatory/events
+  - backend/tests/unit/events
+read_only_paths: [backend/src/observatory/core, backend/pyproject.toml, docs/adr]
+hotspots: []
+allocated_ids: {assumptions: [A-014], debt: [TD-027]}
+out_of_scope: [payload models for the 16 types (AO-P2-004), fixtures and reference trace (AO-P2-005), ingestion, storage, adapters]
+acceptance_criteria:
+  - {id: AC1, statement: "every rejection code of ADR-0008 section 12 is produced in the documented order with the documented disposition, and no rejection echoes a value", verified_by: backend/tests/unit/events}
+  - {id: AC2, statement: "canonical_json is a fixed point and matches section 13; fingerprint is sha256 of it; derive_event_id matches section 4", verified_by: backend/tests/unit/events}
+  - {id: AC3, statement: "canonical_order is independent of input order and keeps each stream's seq order; classify_duplicate matches section 15", verified_by: backend/tests/unit/events}
+  - {id: AC4, statement: "identifier, timestamp, text, path and secret rules of sections 3, 6 and 10 reject malicious and oversized input; every detector has one positive and one negative synthetic case (a URL password containing / and a single-line PEM key with escaped newlines are positive cases, and no byte of the synthetic key body survives sanitize_text; docs/Basic usage/getting-started-guide.md passes as a path; a mandatory negative corpus of structural values passes, including task-1, task-42, risk-team, disk-agent, desk-ops, coordinator:task-42, h. followed by 32 hex characters, UUIDs, timestamps and the prose Basic authentication enabled); an Id shaped like password:x is accepted (TD-026 limit test); a 64 KiB worst-case input, NFKC-expanding input included, stays linear-time; the pinned unidata_version is asserted", verified_by: backend/tests/unit/events}
+  - {id: AC5, statement: "no Rejected field contains any byte of a synthetic secret key or value or of an unknown key; drop records carry no digest; no check with disposition quarantine runs before the secret scan", verified_by: backend/tests/unit/events}
+  - {id: AC6, statement: "Event construction runs checks 9-15; canonical_json, fingerprint, content_fingerprint, classify_duplicate, stream_key and canonical_order reject subclasses and forged instances (model_construct, mutation) and refuse mixed workspaces", verified_by: backend/tests/unit/events}
+  - {id: AC8, statement: "an event accepted under secret rules N validates under rules N+1 through the recorded-version path, and accepting a new event cannot name an older rules version; classify_duplicate returns the five DuplicateKind values in the documented precedence", verified_by: backend/tests/unit/events}
+  - {id: AC7, statement: "lint-imports passes with the observatory.events layer mandatory (the coordinator removes the optional marker when integrating this task)", verified_by: lint-imports}
+testing:
+  level_1: cd backend && .venv/bin/ruff check . && .venv/bin/ruff format --check . && .venv/bin/mypy && .venv/bin/lint-imports
+  level_2: cd backend && .venv/bin/pytest tests/unit -q && .venv/bin/bandit -q -r src
+  adversarial_cases: [serialization bombs, deep nesting, duplicate keys, floats and huge integers, non-UTF-8 and BOM, control and bidi characters, path traversal, secret-bearing strings and keys, malicious identifiers, future versions]
+security_notes: secrets are detected before anything could be quarantined; synthetic secrets are built by concatenation; no value is echoed in a rejection.
+failure_mode: anything unrecognised is rejected with a stable code (fail closed).
+rollback: revert the commit; nothing depends on the package yet.
+budget: {max_agent_turns: 80, escalate_if: ADR-0008 is ambiguous or would need to change}

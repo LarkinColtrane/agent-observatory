@@ -1,0 +1,38 @@
+task_id: AO-P2-004
+title: Event taxonomy payloads, usage event and JSON Schema golden
+phase: P2
+owner: w-p-protocol
+reviewers:
+  independent: [reviewer-a, reviewer-b]
+  specialist: []
+depends_on: [AO-P2-003]
+blocks: [AO-P2-005]
+objective: >
+  Implement the 16 payload models of ADR-0008 section 8 (and the usage event of
+  section 9) with their cross-field and scope rules, plug them into the
+  validator, and generate docs/contracts/event-protocol-v1.schema.json with a
+  golden test.
+inputs:
+  frozen_contracts: []
+  adrs: [docs/adr/0008-universal-event-protocol.md, docs/adr/0007-typed-usage-telemetry-in-logs.md]
+  assumptions: []
+owned_paths:
+  - backend/src/observatory/events
+  - backend/tests/unit/events
+  - docs/contracts/event-protocol-v1.schema.json
+read_only_paths: [backend/src/observatory/core, docs/adr]
+hotspots: []
+allocated_ids: {assumptions: [], debt: [TD-028]}
+out_of_scope: [fixtures and reference trace (AO-P2-005), adapters]
+acceptance_criteria:
+  - {id: AC1, statement: "exactly the 16 types of section 8 with closed payloads, required scope and cross-field rules", verified_by: backend/tests/unit/events}
+  - {id: AC2, statement: "usage.recorded enforces accounting, unit and pricing_ref if and only if estimated_cost", verified_by: backend/tests/unit/events}
+  - {id: AC3, statement: "the JSON Schema is generated from the models and a golden test fails on drift", verified_by: backend/tests/unit/events}
+testing:
+  level_1: cd backend && .venv/bin/ruff check . && .venv/bin/ruff format --check . && .venv/bin/mypy && .venv/bin/lint-imports
+  level_2: cd backend && .venv/bin/pytest tests/unit -q
+  adversarial_cases: [unknown payload fields, self references, kind-specific fields on the wrong kind, oversized arrays, message content smuggling]
+security_notes: no payload carries message content, raw prompts or responses, tool output or test output.
+failure_mode: invalid payloads are rejected with schema_violation or invalid_reference.
+rollback: revert the commit.
+budget: {max_agent_turns: 60, escalate_if: ADR-0008 is ambiguous or would need to change}

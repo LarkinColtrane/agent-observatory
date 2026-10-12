@@ -1,0 +1,38 @@
+task_id: AO-P2-005
+title: Synthetic provider fixtures, reference trace, golden, property and adversarial tests
+phase: P2
+owner: w-p-protocol
+reviewers:
+  independent: [reviewer-a, reviewer-b]
+  specialist: []
+depends_on: [AO-P2-004]
+blocks: []
+objective: >
+  Provide three synthetic provider shapes (A Claude/Codex-like, B generic
+  orchestrator, C minimal custom Python agent) with test-only mappers to the
+  canonical model, the versioned multi-agent reference trace with a pinned
+  digest, and golden, seeded bounded property and adversarial test suites.
+inputs:
+  frozen_contracts: []
+  adrs: [docs/adr/0008-universal-event-protocol.md]
+  assumptions: []
+owned_paths:
+  - backend/tests/fixtures/events
+  - backend/tests/unit/events
+read_only_paths: [backend/src/observatory/events, docs/adr]
+hotspots: []
+allocated_ids: {assumptions: [A-015], debt: [TD-029]}
+out_of_scope: [product adapters (P3), state reconstruction (P4)]
+acceptance_criteria:
+  - {id: AC1, statement: "providers A, B and C, all labelled synthetic, map to the same projection (event_type, scope, payload) for the shared scenario; ids, time and provenance differ as ADR-0008 sections 4 and 6 require", verified_by: backend/tests/unit/events}
+  - {id: AC2, statement: "reference-trace-v1.jsonl is canonical, byte-stable and pinned by SHA-256; it covers spawn, assignment, tools, file changes, a failing test, retry, handoff, error, review, usage and completion for Coordinator, Backend, Frontend, Testing and Security Reviewer agents", verified_by: backend/tests/unit/events}
+  - {id: AC3, statement: "seeded bounded property tests (order permutation invariance, round trip, fingerprint stability, redelivery classified as redelivery) and adversarial tests for every rejection code", verified_by: backend/tests/unit/events}
+  - {id: AC4, statement: "the provider fields each synthetic shape cannot map are listed in the handoff as A-001 evidence; the same native id in two sessions yields two distinct event ids", verified_by: docs/phases/P2-tasks/AO-P2-005.handoff.yaml}
+testing:
+  level_1: cd backend && .venv/bin/ruff check . && .venv/bin/ruff format --check . && .venv/bin/mypy
+  level_2: cd backend && .venv/bin/pytest tests/unit -q
+  adversarial_cases: [every rejection code, malicious identifiers, secret-bearing payloads, usage telemetry attacks, out-of-order and duplicate delivery]
+security_notes: fixture secrets are synthetic and built by concatenation; nothing resembles a real credential in the repository.
+failure_mode: golden drift fails the build.
+rollback: revert the commit.
+budget: {max_agent_turns: 60, escalate_if: a fixture cannot be expressed in ADR-0008}
