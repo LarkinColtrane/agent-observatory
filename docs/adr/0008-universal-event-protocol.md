@@ -769,13 +769,17 @@ They make the contract exact without changing its design.
 - **C2.** The quarantine metadata are optional fields of `Rejected`.
   `source.adapter` is kept only if both its name and its version are valid.
   `spec_version` matches `^(0|[1-9][0-9]{0,3})\.(0|[1-9][0-9]{0,3})$`.
-- **C3.** For `validate_event`, "raw" is the canonical-form serialisation of
-  the input tree, and `raw_length` is 0 if the tree cannot be serialised. A
+- **C3.** For `validate_event`, "raw" is the plain serialisation of the
+  input tree: sorted keys, compact, UTF-8, with no timestamp normalisation.
+  `raw_length` is 0 if the tree cannot be serialised. A
   container object reachable more than once is `invalid_json` (drop), which
   blocks reference bombs.
 - **C4.** Each `Event` privately carries the secret-rules version it was
   validated under: the current version, or the recorded one through
-  `load_recorded`. The pure functions re-validate under that version.
+  `load_recorded`. Only `load_recorded` may set it, and a forged or mutated
+  value never downgrades the rules (fail closed). It is excluded from
+  `canonical_json`, both fingerprints and `Event` equality. The pure
+  functions re-validate under that version.
 - **C5.** If `sanitize_text` finds a hit only in the NFKC form, it sanitises
   the NFKC form and repeats until the result is stable. If the result never
   settles, the whole string becomes `[REDACTED]`.
