@@ -19,12 +19,14 @@ debt:
       Alembic, dependency audit, SAST, import-boundary checks, product failure
       injection. These are Phase 1 deliverables.
     severity: medium
-    status: open
+    status: repaid
     owner: coordinator
     component: C11
     blocks: [P2]
     repayment_trigger: Phase 1 L3 gate (all application tooling running in CI).
     recorded: 2026-10-10
+    history:
+      - 2026-10-12: repaid — Phase 1 Level 3 gate (docs/phases/P1-gate-report.md) ran Ruff, mypy --strict, pytest with real services, ESLint, tsc, Prettier, Vitest, Docker/Compose (CI), Alembic up/down/up, pip-audit, npm audit, bandit and import-linter; all run in CI on every PR. Product failure injection (adapter disconnect, malformed/duplicate/out-of-order events, slow consumer) has no product to exercise yet and moves to the event-pipeline phases' own Level 3 gates (item 9); the foundation's failure modes were injected at this gate.
     history:
       - 2026-10-10: governance/hygiene portion repaid in pre-Phase-1 cleanup; remaining scope is Phase 1 work, so it blocks P2 rather than P1.
 
@@ -323,7 +325,12 @@ debt:
       begins with [REDACTED]. Documented limits also include scheme-less
       user:pw@host, CLI --password X, URL-encoded password%3DX, pydantic
       input_value and unquoted values containing spaces. Structured (key-based)
-      redaction is unaffected.
+      redaction is unaffected. Over-masking (not a leak): a secret-named
+      setting followed by a colon makes the next word its "value", so the
+      ConfigurationError "AO_DATABASE_URL: password must be percent-encoded" is
+      logged as "AO_DATABASE_URL: [REDACTED] must be percent-encoded" (P1 gate;
+      cause per R-A-P1-01). Fix by rewording those messages without a
+      "<SETTING>:" prefix; the scrubber stays as is.
     severity: low
     status: open
     owner: coordinator

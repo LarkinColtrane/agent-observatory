@@ -29,10 +29,13 @@ phases:
     blocked_by: []
   - id: P1
     name: Engineering foundation
-    status: in_progress
+    status: gate_review
     plan: docs/phases/P1-plan.md
+    gate_report: docs/phases/P1-gate-report.md
+    approved_not_applicable: []
+    review_record: docs/reviews/phase-1-gate-review.md
     blocked_by: []
-  - {id: P2, name: Universal agent event protocol, status: not_started, blocked_by: [TD-001, TD-022]}
+  - {id: P2, name: Universal agent event protocol, status: not_started, blocked_by: [TD-022]}
   - {id: P3, name: Adapter / SDK layer, status: not_started, blocked_by: [TD-012, TD-024]}
   - {id: P4, name: Agent state engine, status: not_started, blocked_by: []}
   - {id: P5, name: Realtime observability, status: not_started, blocked_by: []}
@@ -125,3 +128,6 @@ pending_tags:
   - tag: contract-phase1-foundation-v1.0.0
     commit: self
     message: Agent Observatory Phase 1 engineering-foundation contract (ADR-0005) v1.0.0, approved by Reviewer A and Reviewer B.
+  - tag: phase-P1-v1.0.0
+    commit: self
+    message: Agent Observatory Phase 1 engineering foundation, Level 3 gate passed (items 1-11) and signed off by Reviewer A and Reviewer B.
