@@ -306,7 +306,8 @@ total only as reported. Cache-write tokens count as input.
     otherwise recomputes or ignores it.
   - `pricing_ref` without `estimated_cost` is a `schema_violation`.
 - **Currency** in a usage event must be in the pinned allowlist of active
-  ISO 4217 codes (as of 2026-01-01, excluding `X`-prefixed codes), kept in
+  ISO 4217 codes (as of 2026-01-01, excluding the non-currency `X` codes;
+  see C16), kept in
   `observatory.events`. Changing the list is a minor version. Provider
   credits and other non-ISO units stay unknown, so the cost is omitted.
 - No cost is ever fabricated. An unknown cost is absent.
@@ -381,9 +382,10 @@ NFKC form; a hit on either counts.
     option arguments, and `NAME=value` words. It is compared by basename;
   - `-u`/`--user` values of the form `user:pass`;
   - `set <secret-named key> <value>`.
-- **Known limit (TD-026):** Ids skip the text tier so that structural ids
-  such as `sess:auth:42` or `tokenizer:abc` stay valid. An Id shaped like
-  `password:x` is therefore accepted. Ids are opaque references that
+- **Known limit (TD-026):** Ids and RelPaths skip the text tier, so that
+  structural ids such as `sess:auth:42` or `tokenizer:abc` and ordinary
+  paths stay valid. An Id shaped like `password:x`, or a path segment shaped
+  like `password=x`, is therefore accepted. Ids are opaque references that
   adapters build (§4), never free text.
 - **Secret-named keys.** Any key whose name is secret-named under ADR-0005
   rules is a hit, at any depth, extensions and unknown fields included. The
@@ -809,6 +811,80 @@ accepted. Reviewers A and B check them in the AO-P2-006 implementation review.
 - **C13.** For §18, "the same projection" is compared with the
   `<provider>:` prefix removed from entity ids. §4 qualifies every entity id
   by provider, so ids from two shapes can never be literally equal.
+
+## Amendments from the implementation review (AO-P2-006, before the freeze)
+
+The adversarial implementation review found gaps that only show up in
+code. These amendments close them before the freeze. Each one goes toward
+stricter detection or exactness. Both reviewers sign them off with the
+AO-P2-006 fixes.
+
+- **C14 (`content_fingerprint` input).** Removing the four fields leaves the
+  `time` object in place. When `occurred_at` is absent, the digest input
+  contains `"time":{}`. The digest input is not an event, so the §2
+  empty-object rule does not apply to it.
+- **C15 (C10 code).** A vendor name equal to a core family is
+  `schema_violation` (check 13) at `/event_type`, as for a denylisted vendor.
+- **C16 (currency).** Only the non-currency `X` codes are excluded: XAG, XAU,
+  XBA, XBB, XBC, XBD, XDR, XPD, XPT, XSU, XTS, XUA and XXX. The X-prefixed
+  national and regional currencies (XAF, XCD, XCG, XOF, XPF) are allowed.
+- **C17 (names with spaces; loosening).** A provider tool or model name
+  outside ToolName or ModelName is mapped by the adapter to `h.` followed by
+  the first 32 hex characters of `SHA-256(UTF-8(name))`, the same injective
+  rule as §4. Loosening a scalar rule is a minor version (§16).
+- **C18 (already redacted).** A value counts as already redacted only if it
+  is exactly `[REDACTED]`, ending at a quote, a delimiter, whitespace or the
+  end of the string. Any other value that starts with `[REDACTED]` is a hit
+  in the scan, and `sanitize_text` masks the whole value extent. When a
+  credential detector masks only part of a key/value or option value, the
+  rest of that value is masked too. The same rule applies to ADR-0005's
+  `core.logging` scrubber.
+- **C19 (quoted values).** In the text tier, a value that starts with `'` or
+  `"` extends to the matching unescaped quote, or to the end of the string.
+- **C20 (CLI coverage).** Each of these over-masks, which is the declared
+  safe direction.
+  - The attached `-p<value>` rule applies when **any** word in the string
+    has a basename in the mysql tool list. Words after `;`, `&&`, `||`, `|`,
+    `docker … exec`, `kubectl … exec` or `timeout` are included.
+  - A short-option cluster (`-Eu`) takes an argument when its last letter
+    does. This applies to the sudo and env skipping and to `-u`.
+  - New rules:
+    - `sshpass -p <value>`;
+    - `redis-cli -a <value>` and `--pass <value>`;
+    - `pass:<value>` after `-passin` or `-passout`;
+    - a key whose normalised name ends in `pwd` (`MYSQL_PWD=x`);
+    - `=>` as a key/value separator;
+    - any amount of horizontal whitespace around `=`, `:` and `=>`.
+  - Every rule stays linear: one tokenisation per string, with no per-match
+    look-ahead to the end of a token.
+- **C21 (stripped form).** The secret scan also runs on the stripped form of
+  each string: the §10.2 characters removed, and TAB and LF folded to a
+  space. A hit is `secret_detected` (drop), so a forbidden character cannot
+  turn a drop into a quarantine.
+- **C22 (acceptance paths).** An event is accepted only through
+  `parse_event`, `validate_event` or, for stored rows only, `load_recorded`.
+  `Event.model_validate_json` and `Event.model_validate_strings` raise.
+  `Event` validation is strict whatever `strict=` argument the caller passes.
+- **C23 (recorded rules).** Only `load_recorded` can set an event's rules
+  version; no public helper can. P4 calls `load_recorded` only on rows read
+  from its own event store, and ingestion uses only `parse_event`.
+- **C24 (process-local events).** The C4 stamp is an HMAC under a
+  per-process key, so an `Event` object is valid only in the process that
+  validated it. Events cross process, cache and queue boundaries only as
+  canonical bytes (`parse_event` / `load_recorded`). The module asserts
+  `unicodedata.unidata_version` when it is imported, and a mismatch fails
+  the import (fail closed).
+- **C25 (combining the two duplicate checks).** Ingestion first classifies
+  the incoming event against the stored event with the same `event_id`.
+  That result decides when it is `exact_duplicate`, `redelivery` or
+  `conflict`. Only when it is `distinct` does the slot check apply, giving
+  `sequence_conflict` or `distinct`. A redelivery whose (stream key, `seq`)
+  slot holds another event also raises an alert.
+- **C26 (informative schema).** Regenerating
+  `event-protocol-v1.schema.json` after a tooling-only change (for example a
+  Pydantic upgrade), with no change to any model, is not a contract change;
+  it is reviewed as a patch. The schema must accept every valid extension
+  event.
 
 ## Consequences
 
