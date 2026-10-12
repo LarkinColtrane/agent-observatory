@@ -63,6 +63,28 @@ Both reviewers checked only the round-3 diff. Notes applied before merge:
 Carried into the AO-P2-003 review: tests for skipping sudo/env options, and
 a requirement that `load_recorded` is never used to accept a new event.
 
+## Round 5 (`5894c26`, `d79215a`): clarifications C0–C8 raised during AO-P2-003, A APPROVE, B APPROVE
+
+W-P stopped AO-P2-003 on one contradiction and eight gaps:
+- the pinned Unicode data version said 15.1.0, but Python 3.12 ships 15.0.0;
+- tier selection at check 9;
+- the quarantine metadata fields;
+- `validate_event` raw bytes;
+- the rules version carried by an event;
+- `sanitize_text` on NFKC-only hits;
+- detector details;
+- extension depth;
+- the `too_large` disposition.
+
+The coordinator ruled on each as clarification C0–C8 in ADR-0008. C0 is an
+erratum; the others resolve toward over-scanning and over-masking, with no
+change of design. Both reviewers signed off, and their wording notes on C3
+and C4 are applied (`d79215a`). Reviewer A's C4 note was passed to AO-P2-003
+as a test requirement: only `load_recorded` sets the private rules version,
+and it never downgrades.
+
 <!-- final-verdicts -->
 - **Reviewer A final outcome:** APPROVE — AO-P2-002 round 4 (`bf627d7`)
 - **Reviewer B final outcome:** APPROVE_WITH_NOTES — AO-P2-002 round 4 (`bf627d7`), notes applied before merge
+- **Reviewer A final outcome:** APPROVE — ADR-0008 clarifications C0–C8 (`5894c26`)
+- **Reviewer B final outcome:** APPROVE — ADR-0008 clarifications C0–C8 (`5894c26`), wording notes applied in `d79215a`
