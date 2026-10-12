@@ -17,10 +17,15 @@ inputs:
   assumptions: []
 owned_paths:
   - docs/adr/0007-typed-usage-telemetry-in-logs.md
+  - docs/adr/0005-phase-1-foundation-contract.md
+  - docs/adr/README.md
+  - docs/security-baseline.md
+  - tests/governance/test_check_governance.py
   - backend/src/observatory/core/telemetry.py
   - backend/src/observatory/core/logging.py
   - backend/tests/unit/test_telemetry.py
   - docs/phases/P2-plan.md
+  - docs/phases/P2-closure-checklist.md
   - docs/phases/P2-tasks
   - docs/reviews/phase-2-reviews.md
 read_only_paths: [backend/tests/unit/test_logging.py, backend/src/observatory/core/config.py]

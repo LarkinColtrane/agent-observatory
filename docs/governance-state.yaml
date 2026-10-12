@@ -100,6 +100,7 @@ contracts:
     reviewed_by: [reviewer-a, reviewer-b]
     tag: null
   - id: phase1-foundation
+    # §3 amended by ADR-0007 (typed usage telemetry, one exact-type exception); read the two together.
     review_record: docs/reviews/phase-1-contract-review.md
     path: docs/adr/0005-phase-1-foundation-contract.md
     version: 1.0.0

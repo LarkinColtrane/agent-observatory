@@ -225,7 +225,7 @@ class TestGovernanceState(CheckerCase):
 
     def test_phase_cannot_start_before_predecessor_closed(self) -> None:
         # Explicit fixture state: the live P2 status changes as phases progress.
-        self.set_phase("P2", status="in_progress", plan="docs/phases/P1-plan.md", blocked_by=[])
+        self.set_phase("P2", status="in_progress", plan="docs/phases/P2-plan.md", blocked_by=[])
         self.set_phase("P1", status="not_started")
         self.assertFails(r"phase P2: is 'in_progress' but P1 is not closed")
         self.set_phase("P1", status="in_progress")

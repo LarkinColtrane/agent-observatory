@@ -137,6 +137,17 @@ class _ValidatedUsage:
     __repr__ = __str__
 
 
+def _resolve_usage(value: object) -> _ValidatedUsage:
+    """Re-validate usage; an existing ``_ValidatedUsage`` is never trusted as given (R-A-P2-001-05)."""
+    if type(value) is _ValidatedUsage:
+        fields = value.fields
+        try:
+            value = None if fields is None else UsageMetrics.model_validate(dict(fields))
+        except Exception:  # any failure on a hand-built instance fails closed
+            value = None
+    return _ValidatedUsage(usage_log_fields(value))
+
+
 def is_secret_key(key: object) -> bool:
     """True if ``key`` names a secret (substring match ignoring case, ``-`` and ``_``)."""
     return _is_secret_name(key.decode("latin-1") if isinstance(key, bytes) else str(key))
@@ -199,8 +210,8 @@ def redact(value: Any, *, stringify: bool = True, _depth: int = 0) -> Any:
     """
     if _depth > _MAX_DEPTH:
         return _TRUNCATED
-    if type(value) is UsageMetrics:
-        value = _ValidatedUsage(usage_log_fields(value))
+    if type(value) in (UsageMetrics, _ValidatedUsage):
+        value = _resolve_usage(value)
     if isinstance(value, str):
         return scrub_text(value)
     deeper = _depth + 1

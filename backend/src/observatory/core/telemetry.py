@@ -20,7 +20,8 @@ CURRENCY_PATTERN: Final = r"^[A-Z]{3}$"
 
 TokenCount = Annotated[int, Field(strict=True, ge=0, le=MAX_TOKENS)]
 
-_STRICT: Final = ConfigDict(frozen=True, extra="forbid", strict=True)
+# hide_input_in_errors: a rejected value is never echoed in an error (R-A-P2-001-06).
+_STRICT: Final = ConfigDict(frozen=True, extra="forbid", strict=True, hide_input_in_errors=True)
 
 
 class Money(BaseModel):
@@ -33,7 +34,15 @@ class Money(BaseModel):
 
 
 class UsageMetrics(BaseModel):
-    """Model usage as reported or estimated; an absent field means unknown, never zero."""
+    """Model usage as reported or estimated; an absent field means unknown, never zero.
+
+    Canonical meanings (ADR-0007 §Semantics); producers convert provider counts:
+    ``input_tokens`` counts all input, cache reads and cache writes included;
+    ``cached_input_tokens`` is the part of it read from cache; ``reasoning_tokens``
+    is the part of ``output_tokens`` spent on reasoning; ``total_tokens`` is only
+    ever the provider's own total, never computed. Whether the values are a delta
+    or a running total is stated by the record that carries them.
+    """
 
     model_config = _STRICT
 
@@ -62,6 +71,11 @@ class UsageMetrics(BaseModel):
     def _not_empty(self) -> Self:
         if all(getattr(self, name) is None for name in USAGE_FIELDS):
             raise ValueError("usage metrics need at least one known value")
+        # Subset rules from the canonical meanings; checked only when both are known.
+        for part, whole in (("cached_input_tokens", "input_tokens"), ("reasoning_tokens", "output_tokens")):
+            part_value, whole_value = getattr(self, part), getattr(self, whole)
+            if part_value is not None and whole_value is not None and part_value > whole_value:
+                raise ValueError(f"{part} cannot exceed {whole}")
         return self
 
 

@@ -81,6 +81,22 @@ def test_unknown_stays_unknown() -> None:
     assert usage_log_fields(usage) == {"output_tokens": 7}  # nothing defaulted to 0, nothing derived
 
 
+@pytest.mark.parametrize(
+    "fields",
+    [{"cached_input_tokens": 11, "input_tokens": 10}, {"reasoning_tokens": 2, "output_tokens": 1}],
+    ids=repr,
+)
+def test_subset_rules_are_enforced(fields: dict[str, int]) -> None:
+    with pytest.raises(ValidationError):
+        UsageMetrics.model_validate(fields)
+
+
+def test_subset_rules_allow_equality_and_missing_wholes() -> None:
+    UsageMetrics(cached_input_tokens=10, input_tokens=10, reasoning_tokens=5, output_tokens=5)
+    UsageMetrics(cached_input_tokens=10)  # the whole is unknown: nothing to check
+    UsageMetrics(total_tokens=1, input_tokens=5)  # total is as reported, not cross-checked
+
+
 def test_empty_usage_is_rejected() -> None:
     with pytest.raises(ValidationError):
         UsageMetrics()
@@ -418,6 +434,28 @@ def test_valid_usage_object_is_not_mutated_by_redaction() -> None:
     usage = _usage()
     redact({"usage": usage})
     assert usage == _usage()
+
+
+@pytest.mark.parametrize("fmt", ["json", "console"])
+def test_hand_built_validated_usage_is_revalidated(
+    fmt: str, make_settings: SettingsFactory, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from observatory.core.logging import _ValidatedUsage  # noqa: PLC0415 - private, probed on purpose
+
+    forged = _ValidatedUsage({"reported_cost": {"amount": "password=" + API_KEY, "currency": "USD"}})
+    valid = _ValidatedUsage({"input_tokens": 7})
+    out = _emit(fmt, make_settings, capsys, extra={"usage": forged, "ok": valid, "meta": {"u": forged}})
+    assert "synthetic" not in out
+    if fmt == "json":
+        record = _record(out)
+        assert record["usage"] == REDACTED
+        assert record["ok"] == {"input_tokens": 7}
+
+
+def test_validation_errors_do_not_echo_rejected_values() -> None:
+    with pytest.raises(ValidationError) as excinfo:
+        UsageMetrics.model_validate({"input_tokens": API_KEY})
+    assert "synthetic" not in str(excinfo.value)
 
 
 def test_money_subclass_is_rejected_at_construction() -> None:

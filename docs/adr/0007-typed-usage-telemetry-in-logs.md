@@ -41,6 +41,16 @@ resolved, because the event protocol carries usage.
    At least one field must be present. Unknown values stay absent: nothing is
    defaulted to 0, no total or cost is derived, and the two cost kinds are
    never merged.
+   **Semantics** (canonical; producers convert provider counts, which differ):
+   `input_tokens` counts all input tokens, cache reads and cache writes
+   included; `cached_input_tokens` is the part of `input_tokens` read from
+   cache; `reasoning_tokens` is the part of `output_tokens` spent on reasoning;
+   `total_tokens` is only the provider's own total, never computed and not
+   cross-checked. Validation rejects `cached_input_tokens > input_tokens` and
+   `reasoning_tokens > output_tokens` (checked when both are present). Whether
+   values are a per-call delta or a running total is stated by the record that
+   carries them (ADR-0008 usage event), never by this type. Cache-write tokens
+   have no separate field in v1; adding one is an additive change.
 2. The log pipeline exempts a value only when **`type(value) is UsageMetrics`**
    (subclasses do not qualify) and it is passed as a structured field
    (`extra={...}`, at any depth in JSON output, top level in console output).
