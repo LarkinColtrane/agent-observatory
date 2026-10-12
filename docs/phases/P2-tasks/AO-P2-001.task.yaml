@@ -1,0 +1,42 @@
+task_id: AO-P2-001
+title: Repay TD-022 with typed usage telemetry (ADR-0007)
+phase: P2
+owner: coordinator
+reviewers:
+  independent: [reviewer-a, reviewer-b]
+  specialist: [security]
+depends_on: []
+blocks: [AO-P2-002]
+objective: >
+  Let numeric usage metrics survive log redaction through one exact,
+  re-validated type (UsageMetrics) without weakening general redaction, and
+  open Phase 2.
+inputs:
+  frozen_contracts: [docs/adr/0005-phase-1-foundation-contract.md@contract-phase1-foundation-v1.0.0]
+  adrs: [docs/adr/0005-phase-1-foundation-contract.md, docs/adr/0003-phase-order-and-event-protocol-deferral.md]
+  assumptions: []
+owned_paths:
+  - docs/adr/0007-typed-usage-telemetry-in-logs.md
+  - backend/src/observatory/core/telemetry.py
+  - backend/src/observatory/core/logging.py
+  - backend/tests/unit/test_telemetry.py
+  - docs/phases/P2-plan.md
+  - docs/phases/P2-tasks
+  - docs/reviews/phase-2-reviews.md
+read_only_paths: [backend/tests/unit/test_logging.py, backend/src/observatory/core/config.py]
+hotspots: []
+allocated_ids: {assumptions: [], debt: [TD-025]}
+out_of_scope: [event protocol design (AO-P2-002), changes to SECRET_KEY_PARTS or scrub_text]
+acceptance_criteria:
+  - {id: AC1, statement: an exact valid UsageMetrics passed as a structured field is logged with its numeric fields in JSON (any depth) and console (top level) output, verified_by: backend/tests/unit/test_telemetry.py}
+  - {id: AC2, statement: "key names never earn the exemption; plain mappings, (key, value) pairs and message text with usage stay redacted; secret-named keys win over typed usage", verified_by: backend/tests/unit/test_telemetry.py}
+  - {id: AC3, statement: "subclasses, model_construct, mutated or injected objects, and string, bool, float, negative, huge or non-canonical values are rejected or redacted whole", verified_by: backend/tests/unit/test_telemetry.py}
+  - {id: AC4, statement: the existing redaction suite passes unchanged, verified_by: backend/tests/unit/test_logging.py}
+testing:
+  level_1: cd backend && .venv/bin/ruff check . && .venv/bin/ruff format --check . && .venv/bin/mypy && .venv/bin/lint-imports
+  level_2: cd backend && .venv/bin/pytest tests/unit -q && .venv/bin/bandit -q -r src
+  adversarial_cases: [credential values under token keys, nested secrets, malicious keys, numeric-looking strings, huge negative and malformed numbers, forged objects]
+security_notes: the exemption is by exact type and re-validated at render time; it must never be reachable by key name.
+failure_mode: anything that fails re-validation is written as [REDACTED] (fails closed).
+rollback: revert the commit; usage is redacted again.
+budget: {max_agent_turns: 40, escalate_if: general redaction would need to change}

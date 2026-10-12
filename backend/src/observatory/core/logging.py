@@ -15,6 +15,10 @@ Every record emitted through the handler installed by ``configure_logging``:
 Each formatter finally scrubs its whole output once more (JSON: every key and
 string of the payload; console: the full text, with control characters
 escaped) as a backstop for anything rendered outside the layers above.
+
+The one exception (ADR-0007): a structured field whose value is exactly a
+``UsageMetrics`` is written as its re-validated numeric fields, unless its key
+is secret-named. No key name earns this; ``{"input_tokens": 5}`` is redacted.
 Text masking is pattern-based and best-effort: secrets must still never be
 logged on purpose.
 """
@@ -34,6 +38,8 @@ from datetime import UTC, datetime
 from functools import lru_cache
 from types import TracebackType
 from typing import TYPE_CHECKING, Any, Final
+
+from observatory.core.telemetry import UsageMetrics, usage_log_fields
 
 if TYPE_CHECKING:  # annotation only: Settings is built solely by get_settings()
     from observatory.core.config import Settings  # noqa: TID251 (type only; never constructed)
@@ -161,7 +167,8 @@ def redact(value: Any, *, stringify: bool = True, _depth: int = 0) -> Any:
     """Return a redacted copy of ``value`` (the input is never mutated).
 
     Mapping values under secret-named keys, and the second element of
-    ``(secret_key, value)`` pairs in sequences, become ``[REDACTED]``; mappings
+    ``(secret_key, value)`` pairs in sequences, become ``[REDACTED]``; an exact
+    ``UsageMetrics`` under any other key is kept for the formatter; mappings
     and sequences are walked recursively; strings and keys go through
     ``scrub_text``. With ``stringify`` (JSON output) other objects are rendered
     with ``str()`` and scrubbed and non-finite floats become strings; without it
@@ -185,7 +192,9 @@ def redact(value: Any, *, stringify: bool = True, _depth: int = 0) -> Any:
         return tuple(items) if not stringify and isinstance(value, tuple) else items
     if value is None or isinstance(value, bool | int | float):
         return _redact_number(value, stringify)
-    return scrub_text(str(value)) if stringify else value
+    # Typed telemetry (ADR-0007) is kept for the formatter, which re-validates it.
+    keep = not stringify or type(value) is UsageMetrics
+    return value if keep else scrub_text(str(value))
 
 
 def _redact_number(value: float | None, stringify: bool) -> Any:
@@ -229,6 +238,19 @@ def _extras(record: logging.LogRecord) -> dict[str, Any]:
     }
     redacted: dict[str, Any] = redact(extras)
     return redacted
+
+
+def _json_default(value: object) -> object:
+    """``json.dumps`` fallback: typed usage as re-validated fields, anything else as scrubbed text."""
+    if type(value) is UsageMetrics:
+        fields = usage_log_fields(value)
+        return REDACTED if fields is None else fields
+    return scrub_text(str(value))
+
+
+def _usage_text(value: object) -> str:
+    fields = usage_log_fields(value)
+    return REDACTED if fields is None else json.dumps(fields, sort_keys=True, separators=(",", ":"))
 
 
 def _escape_controls(text: str) -> str:
@@ -284,7 +306,7 @@ class JsonFormatter(_RedactingFormatter):
         if exc is not None:
             payload["exc_info"] = exc
         # Backstop: every key and string scrubbed once more; the output stays valid JSON.
-        return json.dumps(redact(payload), default=str, allow_nan=False)
+        return json.dumps(redact(payload), default=_json_default, allow_nan=False)
 
 
 class ConsoleFormatter(_RedactingFormatter):
@@ -296,10 +318,16 @@ class ConsoleFormatter(_RedactingFormatter):
             f"[{self._request_id(record) or '-'}] {_render_message(record)}"
         )
         extras = _extras(record)
-        if extras:
-            line += " " + " ".join(f"{k}={v!r}" for k, v in extras.items())
+        usage = {k: v for k, v in extras.items() if type(v) is UsageMetrics}
+        plain = [f"{k}={v!r}" for k, v in extras.items() if k not in usage]
+        if plain:
+            line += " " + " ".join(plain)
         # Backstop scrub, then escape control characters (CR/LF included).
         text = _escape_controls(scrub_text(line))
+        # Typed usage (top level only) is appended after the backstop: its text is built
+        # solely from fixed field names and validated numbers (ADR-0007).
+        for key, value in usage.items():
+            text += f" {_escape_controls(scrub_text(key))}={_usage_text(value)}"
         exc = self._exception_text(record)
         if exc is not None:
             text += "".join("\n  " + _escape_controls(ln) for ln in scrub_text(exc).split("\n"))

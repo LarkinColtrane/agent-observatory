@@ -1,0 +1,38 @@
+task_id: AO-P2-002
+title: Universal event protocol contract (ADR-0008)
+phase: P2
+owner: coordinator
+reviewers:
+  independent: [reviewer-a, reviewer-b]
+  specialist: [security]
+depends_on: [AO-P2-001]
+blocks: [AO-P2-003]
+objective: >
+  Write the provider-neutral event protocol v1 contract (envelope, taxonomy,
+  identity, hierarchy, tasks, causality, time and ordering, usage, extensions,
+  payload safety, versioning, validation, canonical serialisation,
+  fingerprints, duplicates) and get it approved by both reviewers.
+inputs:
+  frozen_contracts: [docs/adr/0005-phase-1-foundation-contract.md@contract-phase1-foundation-v1.0.0]
+  adrs: [docs/adr/0003-phase-order-and-event-protocol-deferral.md, docs/adr/0007-typed-usage-telemetry-in-logs.md]
+  assumptions: []
+owned_paths:
+  - docs/adr/0008-universal-event-protocol.md
+  - docs/contracts
+  - backend/pyproject.toml
+read_only_paths: [backend/src/observatory/core, docs/security-baseline.md, docs/roadmap.md]
+hotspots: [backend/pyproject.toml]
+allocated_ids: {assumptions: [A-013], debt: [TD-026]}
+out_of_scope: [implementation (AO-P2-003/004), ingestion, storage, adapters]
+acceptance_criteria:
+  - {id: AC1, statement: every item of the owner's P2 brief is decided in ADR-0008 with a reason, verified_by: docs/reviews/phase-2-reviews.md}
+  - {id: AC2, statement: Reviewer A and Reviewer B approve the contract, verified_by: docs/reviews/phase-2-reviews.md}
+  - {id: AC3, statement: import-linter places observatory.events between the adapters of later phases and observatory.core, verified_by: lint-imports}
+testing:
+  level_1: python3 -I scripts/check-governance.py && python3 -I scripts/check-artifacts.py
+  level_2: cd backend && .venv/bin/lint-imports
+  adversarial_cases: [reviewers attack the contract for secret leakage, identity collisions, ordering non-determinism, duplicate ambiguity]
+security_notes: the contract must keep secrets, raw prompts and raw responses out of events.
+failure_mode: an undecided item blocks approval.
+rollback: revert the commit; nothing builds on an unapproved contract.
+budget: {max_agent_turns: 40, escalate_if: an item needs an owner decision}
