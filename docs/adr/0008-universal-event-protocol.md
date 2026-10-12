@@ -361,18 +361,24 @@ NFKC form; a hit on either counts.
   | AWS access key id | `(?<![A-Z0-9])(?:AKIA\|ASIA)[A-Z0-9]{16}(?![A-Z0-9])` |
   | Google API key | `B AIza[A-Za-z0-9_-]{35}` |
   | JWT | `B eyJ[A-Za-z0-9_-]{8,}\.eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]*` |
-  | Bearer/Basic credential | `(?i:bearer\|basic)\s+[A-Za-z0-9._~+/-]{16,}=*` |
-  | PEM/PGP private key | `-----BEGIN [A-Z ]{0,40}PRIVATE KEY( BLOCK)?-----` |
+  | PEM/PGP private key | detection: `-----BEGIN [A-Z ]{0,40}PRIVATE KEY( BLOCK)?-----`; extent for replacement: from that header to the next `-----END [A-Z ]{0,40}PRIVATE KEY( BLOCK)?-----`, or to the end of the string if there is none (possessive or tempered, linear) |
   | URL userinfo | in the whitespace-free token after `://`, a `:` before the token's last `@`, with no `/` between `://` and that `:`; evaluated per token (possessive token match, then a last-`@` search), so it stays linear and a password may contain `/` |
 
   So `task-42`, `desk-ops` and "Basic authentication enabled" are not hits.
+  `sanitize_text` replaces the full extent of each match as defined here, so
+  no byte of a private-key body survives.
 - **Text detectors** run on Text, ProviderRef, ToolName, ModelName and
   extension string values (not on Ids or RelPaths):
+  - Bearer/Basic credentials, `(?i:bearer|basic)\s+[A-Za-z0-9._~+/-]{16,}=*`;
+    text tier only, so a path such as `docs/Basic usage/getting-started-guide.md`
+    is not a hit;
   - ADR-0005's key/value scrub (`password=x`, `token: x`, `'api_key': 'x'`);
   - secret-named options (ADR-0005 key rules) written with whitespace or
     attached with `=`: `--password X`, `--api-key=X`;
   - `-p<value>` attached, when the command's first word is `mysql`,
-    `mysqldump`, `mysqladmin`, `mariadb` or `mariadb-dump`;
+    `mysqldump`, `mysqladmin`, `mariadb` or `mariadb-dump`. The first word
+    is taken after skipping `sudo`, `env` and `NAME=value` words, and is
+    compared by basename;
   - `-u`/`--user` values of the form `user:pass`;
   - `set <secret-named key> <value>`.
 - **Known limit (TD-026):** Ids skip the text tier so that structural ids
@@ -696,8 +702,10 @@ optional until AO-P2-003 creates the package, and mandatory from then on.
 SPEC_VERSION = "1.0"; SUPPORTED_VERSIONS = frozenset({"1.0"}); SECRET_RULES_VERSION = 1
 Event, Scope, EventTime, Source, Adapter, Causality         frozen strict models
 <one payload model per §8 type>; ExtensionPayload
-parse_event(raw: bytes) -> Accepted | Rejected
-validate_event(data: object) -> Accepted | Rejected
+parse_event(raw: bytes) -> Accepted | Rejected                  always the current rules version
+validate_event(data: object) -> Accepted | Rejected             always the current rules version
+load_recorded(record: Mapping[str, object]) -> RecordedEvent    validates with record["secret_rules_version"]
+SECRET_RULES: Mapping[int, RuleSet]                             every rules version; unknown version -> ValueError
 canonical_json(event: Event) -> bytes
 fingerprint(event: Event) -> str
 content_fingerprint(event: Event) -> str
