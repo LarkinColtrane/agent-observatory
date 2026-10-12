@@ -162,9 +162,44 @@ mutant (now caught); B verified each fix by mutation.
 | R-A-004-203 | nit | migrator can rewrite the completion marker | accepted (roles still required) |
 | R-A-004-204 | minor | redis hardening not run locally | verified by CI `containers` job |
 
+## AO-P1-006 — integration (coordinator; reviewers A and B; CRITICAL)
+
+**Round 1** (`58e8034`) — A: REQUEST_CHANGES; B: REQUEST_CHANGES. Both
+independently found the same blocker. Verified OK: per-run masked CI secrets
+passed by name, no credential-shaped literals, teardown always runs, Alembic
+logs through the redacting handler, `@` in the username rejected, worker
+snapshots byte-identical to the approved branches, CI run 38148626706 green
+with every step executed.
+
+| ID | Sev | Finding | Disposition |
+|---|---|---|---|
+| R-A-006-01 / R-B-006-01 | blocking | single-flight shared a stalled probe indefinitely; readiness never recovered after dead pooled connections (~15 min or forever) | fixed: probe bounded without awaiting the driver's cancellation; pool reset after a failed DB probe; integration test where every pooled connection stalls |
+| R-B-006-02 | minor | TID251 ban bypassable via bare `# noqa` or file-level `ruff: noqa` | fixed: ruff PGH004; test rejects file directives and any runtime `Settings()` outside config.py |
+| R-B-006-03 | nit | shared probe inherited the first caller's request id | fixed: fresh context |
+| R-B-006-04 | nit | no claim recorded for AO-P1-006 | noted in the handoff |
+| R-A-006-02 | minor | `make down` deleted the database volume | fixed: `down` keeps data; `reset` is destructive |
+| R-A-006-03 | nit | A-011 attribution | fixed |
+| R-A-006-04 | minor | readiness failure logs per caller during an outage | TD-023 (blocks P11) |
+
+**Round 2** (`58e8034..7c1aa6c`) — A: APPROVE_WITH_NOTES; B: APPROVE. A's
+`hang.py` recovers after one 503; a 210-call all-stalled stress run kept at most
+5 abandoned probes, recovered immediately, and left 0 sessions, 0 password
+occurrences and 0 task warnings. B's stall probe recovers on the first probe
+after the heal; disposing the pool under 8 running app queries left them
+intact. Mutants (no reset, no wiring, unbounded probe, awaited cancellation,
+inherited context) are each killed by the suite; the lifespan wiring is guarded
+by the unit test, not the integration test.
+
+| ID | Sev | Finding | Disposition |
+|---|---|---|---|
+| R-A-006-05 / R-B-006-05 | minor / nit | pool reset will also hit application traffic once it exists | TD-024 (blocks P3) |
+| R-B-006-06 | nit | ResourceWarnings at exit in the reviewer's harness, not attributable | accepted; the suite runs with warnings as errors |
+
 <!-- final-verdicts -->
 - **Reviewer B final outcome:** APPROVE — AO-P1-005 round 2 (`c35e7c2`, PR #5 head `a123eb1`)
 - **Reviewer A final outcome:** APPROVE_WITH_NOTES — AO-P1-002 round 3 (`dea6e2b`)
 - **Reviewer B final outcome:** APPROVE — AO-P1-003 round 2 (`08be1a7`)
 - **Reviewer A final outcome:** APPROVE_WITH_NOTES — AO-P1-004 round 2 (`dbec4aa`)
 - **Reviewer B final outcome:** APPROVE_WITH_NOTES — AO-P1-004 round 2 (`dbec4aa`)
+- **Reviewer A final outcome:** APPROVE_WITH_NOTES — AO-P1-006 round 2 (`7c1aa6c`)
+- **Reviewer B final outcome:** APPROVE — AO-P1-006 round 2 (`7c1aa6c`)

@@ -331,6 +331,37 @@ debt:
     blocks: [P3]
     repayment_trigger: The four shapes in R-A-002-301..304 are masked with linear-time patterns and tests, before adapters (P3) start sending third-party text into logs.
     recorded: 2026-10-11
+  - id: TD-023
+    title: Readiness failures log once per caller during an outage
+    description: >
+      Single-flight bounds probes to one per service, but every /readyz caller
+      sharing a failed probe still logs a full traceback through run_checks.
+      /readyz is unauthenticated, so log volume grows with request concurrency
+      while the database is down (review R-A-006-04: 210 calls in 40 s produced
+      455 log lines; no secrets).
+    severity: low
+    status: open
+    owner: coordinator
+    component: C11
+    blocks: [P11]
+    repayment_trigger: A shared probe failure is logged once per probe (sharing callers return ok=False silently) or /readyz is rate-limited, with a test bounding log lines per outage window.
+    recorded: 2026-10-12
+  - id: TD-024
+    title: A failed readiness probe resets the pool shared with application queries
+    description: >
+      main.py disposes the whole engine pool after a failed or timed-out
+      database probe so stalled idle connections are dropped (R-A-006-01). With
+      application traffic, a slow-but-alive database would drop idle
+      connections every readiness window and force reconnects under load
+      (reviews R-A-006-05, R-B-006-05). Checked-out connections and in-flight
+      transactions are unaffected. Phase 1 has no application queries.
+    severity: medium
+    status: open
+    owner: coordinator
+    component: C11
+    blocks: [P3]
+    repayment_trigger: Before the first product queries (P3), the readiness probe uses its own small engine/pool, or only the probe's connection is invalidated, or resets require N consecutive failures — with the stalled-connection recovery test still passing.
+    recorded: 2026-10-12
   - id: TD-013
     title: Next.js-specific ESLint rules are not enabled
     description: >

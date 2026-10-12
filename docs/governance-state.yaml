@@ -33,7 +33,7 @@ phases:
     plan: docs/phases/P1-plan.md
     blocked_by: []
   - {id: P2, name: Universal agent event protocol, status: not_started, blocked_by: [TD-001, TD-022]}
-  - {id: P3, name: Adapter / SDK layer, status: not_started, blocked_by: [TD-012]}
+  - {id: P3, name: Adapter / SDK layer, status: not_started, blocked_by: [TD-012, TD-024]}
   - {id: P4, name: Agent state engine, status: not_started, blocked_by: []}
   - {id: P5, name: Realtime observability, status: not_started, blocked_by: []}
   - {id: P6, name: Operations dashboard, status: not_started, blocked_by: [TD-013, TD-017]}
@@ -41,7 +41,7 @@ phases:
   - {id: P8, name: 2D virtual office, status: not_started, blocked_by: []}
   - {id: P9, name: External integrations, status: not_started, blocked_by: []}
   - {id: P10, name: Control room / workflow graph, status: not_started, blocked_by: []}
-  - {id: P11, name: Production hardening, status: not_started, blocked_by: [TD-019, TD-020, TD-021]}
+  - {id: P11, name: Production hardening, status: not_started, blocked_by: [TD-019, TD-020, TD-021, TD-023]}
 
 components:
   - {id: C1, name: Event protocol}
