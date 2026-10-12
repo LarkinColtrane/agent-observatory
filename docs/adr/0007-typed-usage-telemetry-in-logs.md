@@ -44,11 +44,15 @@ resolved, because the event protocol carries usage.
 2. The log pipeline exempts a value only when **`type(value) is UsageMetrics`**
    (subclasses do not qualify) and it is passed as a structured field
    (`extra={...}`, at any depth in JSON output, top level in console output).
-   At render time the formatter re-validates the fixed field names from the
-   object (this catches `model_construct` and post-construction mutation) and
-   writes only those names with validated numbers or decimal strings; if
-   re-validation fails, the whole value is `[REDACTED]`. Rendered usage
-   contains no caller-supplied text, so it bypasses the text backstop safely.
+   The cost fields accept only an exact `Money` (subclasses are rejected at
+   construction, and an exact instance is re-validated as a mapping).
+   `redact` resolves the object once, on every path (extras at any depth,
+   message, arguments): it re-validates the fixed field names (this catches
+   `model_construct`, post-construction mutation and nested model swaps) and
+   keeps only those names with validated numbers or decimal strings; any
+   failure makes the whole value `[REDACTED]`. Rendered usage contains no
+   caller-supplied text, so structured output may skip the text backstop;
+   usage rendered into message text is still scrubbed.
 3. Nothing else changes: `SECRET_KEY_PARTS`, exact keys and `scrub_text` are
    untouched. A secret-named key wins over a typed value (`{"api_token":
    UsageMetrics(...)}` is redacted). Plain mappings such as

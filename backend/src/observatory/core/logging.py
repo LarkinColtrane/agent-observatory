@@ -34,6 +34,7 @@ import sys
 import threading
 from collections.abc import Mapping
 from contextvars import ContextVar
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from functools import lru_cache
 from types import TracebackType
@@ -115,6 +116,27 @@ _HANDLER_MARK: Final = "_observatory_handler"
 _FRAMEWORK_LOGGERS: Final = ("uvicorn", "uvicorn.error", "uvicorn.access")
 
 
+@dataclass(frozen=True, slots=True)
+class _ValidatedUsage:
+    """An exact ``UsageMetrics`` resolved once by ``redact`` (ADR-0007).
+
+    Holds only the re-validated fields (``None`` if re-validation failed), so no
+    raw usage object reaches a formatter on any path (R-A-P2-001-02).
+    """
+
+    fields: Mapping[str, object] | None
+
+    def render(self) -> object:
+        return REDACTED if self.fields is None else dict(self.fields)
+
+    def __str__(self) -> str:
+        if self.fields is None:
+            return REDACTED
+        return json.dumps(dict(self.fields), sort_keys=True, separators=(",", ":"))
+
+    __repr__ = __str__
+
+
 def is_secret_key(key: object) -> bool:
     """True if ``key`` names a secret (substring match ignoring case, ``-`` and ``_``)."""
     return _is_secret_name(key.decode("latin-1") if isinstance(key, bytes) else str(key))
@@ -168,7 +190,7 @@ def redact(value: Any, *, stringify: bool = True, _depth: int = 0) -> Any:
 
     Mapping values under secret-named keys, and the second element of
     ``(secret_key, value)`` pairs in sequences, become ``[REDACTED]``; an exact
-    ``UsageMetrics`` under any other key is kept for the formatter; mappings
+    ``UsageMetrics`` under any other key becomes its re-validated fields; mappings
     and sequences are walked recursively; strings and keys go through
     ``scrub_text``. With ``stringify`` (JSON output) other objects are rendered
     with ``str()`` and scrubbed and non-finite floats become strings; without it
@@ -177,6 +199,8 @@ def redact(value: Any, *, stringify: bool = True, _depth: int = 0) -> Any:
     """
     if _depth > _MAX_DEPTH:
         return _TRUNCATED
+    if type(value) is UsageMetrics:
+        value = _ValidatedUsage(usage_log_fields(value))
     if isinstance(value, str):
         return scrub_text(value)
     deeper = _depth + 1
@@ -192,8 +216,8 @@ def redact(value: Any, *, stringify: bool = True, _depth: int = 0) -> Any:
         return tuple(items) if not stringify and isinstance(value, tuple) else items
     if value is None or isinstance(value, bool | int | float):
         return _redact_number(value, stringify)
-    # Typed telemetry (ADR-0007) is kept for the formatter, which re-validates it.
-    keep = not stringify or type(value) is UsageMetrics
+    # Resolved typed telemetry (ADR-0007) is kept for the formatter.
+    keep = not stringify or type(value) is _ValidatedUsage
     return value if keep else scrub_text(str(value))
 
 
@@ -242,15 +266,9 @@ def _extras(record: logging.LogRecord) -> dict[str, Any]:
 
 def _json_default(value: object) -> object:
     """``json.dumps`` fallback: typed usage as re-validated fields, anything else as scrubbed text."""
-    if type(value) is UsageMetrics:
-        fields = usage_log_fields(value)
-        return REDACTED if fields is None else fields
+    if type(value) is _ValidatedUsage:
+        return value.render()
     return scrub_text(str(value))
-
-
-def _usage_text(value: object) -> str:
-    fields = usage_log_fields(value)
-    return REDACTED if fields is None else json.dumps(fields, sort_keys=True, separators=(",", ":"))
 
 
 def _escape_controls(text: str) -> str:
@@ -318,7 +336,7 @@ class ConsoleFormatter(_RedactingFormatter):
             f"[{self._request_id(record) or '-'}] {_render_message(record)}"
         )
         extras = _extras(record)
-        usage = {k: v for k, v in extras.items() if type(v) is UsageMetrics}
+        usage = {k: v for k, v in extras.items() if type(v) is _ValidatedUsage}
         plain = [f"{k}={v!r}" for k, v in extras.items() if k not in usage]
         if plain:
             line += " " + " ".join(plain)
@@ -327,7 +345,7 @@ class ConsoleFormatter(_RedactingFormatter):
         # Typed usage (top level only) is appended after the backstop: its text is built
         # solely from fixed field names and validated numbers (ADR-0007).
         for key, value in usage.items():
-            text += f" {_escape_controls(scrub_text(key))}={_usage_text(value)}"
+            text += f" {_escape_controls(scrub_text(key))}={value}"
         exc = self._exception_text(record)
         if exc is not None:
             text += "".join("\n  " + _escape_controls(ln) for ln in scrub_text(exc).split("\n"))

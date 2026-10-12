@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import Annotated, Final, Self
 
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints, ValidationError, model_validator
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_validator, model_validator
 
 #: Upper bound for any token count (well above any real session; rejects absurd values).
 MAX_TOKENS: Final = 10**12
@@ -47,6 +47,17 @@ class UsageMetrics(BaseModel):
     #: Cost computed by Observatory (never by copying ``reported_cost``).
     estimated_cost: Money | None = None
 
+    @field_validator("reported_cost", "estimated_cost", mode="before")
+    @classmethod
+    def _exact_money(cls, value: object) -> object:
+        # Pydantic accepts model instances, subclasses included, without re-validating
+        # them (R-A-P2-001-01): only an exact Money is taken, and re-checked as a mapping.
+        if type(value) is Money:
+            return {"amount": value.__dict__.get("amount"), "currency": value.__dict__.get("currency")}
+        if isinstance(value, BaseModel):
+            raise ValueError("cost must be exactly Money")
+        return value
+
     @model_validator(mode="after")
     def _not_empty(self) -> Self:
         if all(getattr(self, name) is None for name in USAGE_FIELDS):
@@ -79,10 +90,9 @@ def usage_log_fields(value: object) -> dict[str, object] | None:
         raw: dict[str, object] = {}
         for name in USAGE_FIELDS:
             field = value.__dict__.get(name)
-            if name in _MONEY_FIELDS and type(field) is Money:
-                # Pydantic does not re-validate model instances; check their fields too.
-                field = {"amount": field.__dict__.get("amount"), "currency": field.__dict__.get("currency")}
-            raw[name] = field
+            if name in _MONEY_FIELDS and field is not None and type(field) not in (Money, dict):
+                return None  # e.g. a Money subclass: never trusted (R-A-P2-001-01)
+            raw[name] = field  # an exact Money is re-checked field by field by _exact_money
         checked = UsageMetrics.model_validate(raw)
         out: dict[str, object] = {}
         for name in USAGE_FIELDS:
@@ -92,5 +102,5 @@ def usage_log_fields(value: object) -> dict[str, object] | None:
             elif field is not None:
                 out[name] = int(field)
         return out
-    except (ValidationError, TypeError, ValueError, AttributeError):
+    except Exception:  # any failure on a tampered object fails closed (R-A-P2-001-04)
         return None

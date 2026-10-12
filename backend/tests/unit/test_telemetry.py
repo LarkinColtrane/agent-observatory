@@ -315,18 +315,39 @@ class _Sub(UsageMetrics):
     """A subclass is not the allowlisted type, even if valid."""
 
 
+class _LaxMoney(Money):
+    """A validated Money subclass with a relaxed amount (R-A-P2-001-01)."""
+
+    amount: str  # type: ignore[assignment]
+
+
+class _RaisingDict(dict[str, object]):
+    def get(self, *_args: object, **_kwargs: object) -> object:
+        raise RuntimeError("tampered")
+
+
 def _bypass_objects() -> list[tuple[str, object]]:
     forged = UsageMetrics.model_construct(input_tokens=API_KEY)  # skips validation
     mutated = UsageMetrics(input_tokens=1)
     object.__setattr__(mutated, "output_tokens", BEARER)  # frozen bypass
     injected = UsageMetrics(input_tokens=1)
     injected.__dict__["api_key"] = API_KEY  # extra attribute: never read
-    bad_money = UsageMetrics(reported_cost=Money.model_construct(amount=API_KEY, currency="USD"))
-    bad_currency = UsageMetrics(reported_cost=Money.model_construct(amount="1", currency=PEM))
+    bad_money = UsageMetrics.model_construct(
+        reported_cost=Money.model_construct(amount=API_KEY, currency="USD")
+    )
+    bad_currency = UsageMetrics.model_construct(reported_cost=Money.model_construct(amount="1", currency=PEM))
     money_as_dict = UsageMetrics(input_tokens=1)
     object.__setattr__(money_as_dict, "estimated_cost", {"amount": BEARER, "currency": "USD"})
     float_cost = UsageMetrics(input_tokens=1)
     object.__setattr__(float_cost, "reported_cost", Money.model_construct(amount=math.inf, currency="USD"))
+    lax_money = UsageMetrics.model_construct(
+        input_tokens=3, reported_cost=_LaxMoney(amount="password=" + API_KEY, currency="USD")
+    )
+    constructed_sub_money = UsageMetrics.model_construct(
+        estimated_cost=_LaxMoney.model_construct(amount=BEARER, currency="USD")
+    )
+    raising = UsageMetrics(input_tokens=1, reported_cost=Money(amount="1", currency="USD"))
+    object.__setattr__(raising.reported_cost, "__dict__", _RaisingDict(amount="1", currency="USD"))
     empty = UsageMetrics.model_construct()
     huge = UsageMetrics.model_construct(total_tokens=10**40)
     negative = UsageMetrics.model_construct(total_tokens=-5)
@@ -338,6 +359,9 @@ def _bypass_objects() -> list[tuple[str, object]]:
         ("bad_currency", bad_currency),
         ("money_as_dict", money_as_dict),
         ("float_cost", float_cost),
+        ("lax_money", lax_money),
+        ("constructed_sub_money", constructed_sub_money),
+        ("raising", raising),
         ("empty", empty),
         ("huge", huge),
         ("negative", negative),
@@ -392,5 +416,33 @@ def test_hostile_keys_cannot_inject_or_leak(
 
 def test_valid_usage_object_is_not_mutated_by_redaction() -> None:
     usage = _usage()
-    assert redact({"usage": usage})["usage"] is usage
+    redact({"usage": usage})
     assert usage == _usage()
+
+
+def test_money_subclass_is_rejected_at_construction() -> None:
+    with pytest.raises(ValidationError):
+        UsageMetrics(input_tokens=3, reported_cost=_LaxMoney(amount="password=" + API_KEY, currency="USD"))
+    with pytest.raises(ValidationError):
+        UsageMetrics(estimated_cost=_LaxMoney(amount="1", currency="USD"))  # even with a valid amount
+
+
+def test_exact_money_instance_is_revalidated_at_construction() -> None:
+    with pytest.raises(ValidationError):
+        UsageMetrics(reported_cost=Money.model_construct(amount=API_KEY, currency="USD"))
+
+
+@pytest.mark.parametrize("fmt", ["json", "console"])
+@pytest.mark.parametrize(("name", "obj"), _bypass_objects(), ids=[n for n, _ in _bypass_objects()])
+def test_forged_usage_never_leaks_on_any_path(
+    fmt: str, name: str, obj: object, make_settings: SettingsFactory, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Nested extras, sequences, the message and its arguments (R-A-P2-001-02)."""
+    configure_logging(make_settings(log_format=fmt, log_level="DEBUG"))
+    log.info("nested", extra={"meta": {"u": obj, "list": [obj]}})
+    log.info(obj)
+    log.info("args %s %r", obj, obj)
+    log.info("mapping %(u)s", {"u": obj})
+    out = capsys.readouterr().err
+    assert "synthetic" not in out
+    assert len([ln for ln in out.splitlines() if ln.strip()]) == 4  # every record rendered, none dropped
