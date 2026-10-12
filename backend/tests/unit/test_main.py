@@ -16,6 +16,7 @@ from fastapi import FastAPI
 import observatory.main as main_module
 from observatory.core.config import get_settings
 from observatory.core.health import CheckResult, make_check, run_checks
+from observatory.core.logging import request_id_var
 from observatory.main import build_app, build_lifespan
 from tests.unit.conftest import SettingsFactory
 
@@ -245,3 +246,97 @@ async def test_shutdown_cancels_inflight_probe(
     assert probe.cancelled.is_set()
     with pytest.raises(asyncio.CancelledError):
         await task
+
+
+async def test_stalled_shared_probe_is_bounded_and_replaced(
+    counting_seams: dict[str, _CountingProbe],
+) -> None:
+    """Review R-B-006-01: a stalled probe must not be shared forever."""
+    probe = counting_seams["database"]
+    probe.delay = 60
+    flight = main_module._SingleFlight(probe, timeout_s=0.05)
+    with pytest.raises(TimeoutError):
+        await flight()
+    await asyncio.sleep(0)  # the abandoned probe handles its cancellation
+    assert probe.cancelled.is_set()  # the deadline reached the probe itself
+    probe.delay = 0
+    assert await flight() == CheckResult("database", True)
+    assert probe.calls == 2  # a fresh probe, not the stalled one
+
+
+async def test_probe_does_not_inherit_caller_request_id() -> None:
+    """Review R-B-006-03: the shared probe runs in a fresh context."""
+    seen: list[str | None] = []
+
+    async def probe() -> CheckResult:
+        seen.append(request_id_var.get())
+        return CheckResult("database", True)
+
+    token = request_id_var.set("caller-request-1")
+    try:
+        await main_module._SingleFlight(probe)()
+    finally:
+        request_id_var.reset(token)
+    assert seen == [None]
+
+
+async def test_timeout_does_not_wait_for_a_slow_cancellation() -> None:
+    """A driver may take seconds to give up a stalled connection; readiness must not."""
+
+    async def stubborn() -> CheckResult:
+        try:
+            await asyncio.sleep(60)
+        except asyncio.CancelledError:
+            await asyncio.sleep(1)  # e.g. psycopg's cancel request on a dead path
+            raise
+        return CheckResult("database", True)  # pragma: no cover
+
+    flight = main_module._SingleFlight(stubborn, timeout_s=0.05)
+    loop = asyncio.get_running_loop()
+    start = loop.time()
+    with pytest.raises(TimeoutError):
+        await flight()
+    assert loop.time() - start < 0.5
+    await flight.aclose()
+
+
+async def test_recovery_runs_after_failure_and_timeout_only() -> None:
+    """Review R-A-006-01: the pool reset hook runs when a probe fails or times out."""
+    recoveries: list[str] = []
+    outcome = {"mode": "ok"}
+
+    async def probe() -> CheckResult:
+        if outcome["mode"] == "fail":
+            raise ConnectionError("down")
+        if outcome["mode"] == "hang":
+            await asyncio.sleep(60)
+        return CheckResult("database", True)
+
+    async def recover() -> None:
+        recoveries.append(outcome["mode"])
+
+    flight = main_module._SingleFlight(probe, timeout_s=0.05, on_failure=recover)
+    assert await flight() == CheckResult("database", True)
+    outcome["mode"] = "fail"
+    with pytest.raises(ConnectionError):
+        await flight()
+    outcome["mode"] = "hang"
+    with pytest.raises(TimeoutError):
+        await flight()
+    assert recoveries == ["fail", "hang"]
+    await flight.aclose()
+
+
+async def test_lifespan_resets_the_database_pool_on_probe_failure(
+    make_settings: SettingsFactory, monkeypatch: pytest.MonkeyPatch, fake_seams: list[str]
+) -> None:
+    async def down() -> CheckResult:
+        raise ConnectionError("down")
+
+    monkeypatch.setattr(main_module, "database_check", lambda e: down)
+    app = FastAPI(lifespan=build_lifespan(make_settings(database_url=_DB_URL)))
+    async with app.router.lifespan_context(app):
+        (check,) = app.state.readiness_checks
+        with pytest.raises(ConnectionError):
+            await check()
+        assert fake_seams == ["engine:closed"]  # engine.dispose() reset the pool

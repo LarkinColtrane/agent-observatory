@@ -44,7 +44,8 @@ target-version = "py312"
 src = ["src", "tests"]
 
 [tool.ruff.lint]
-select = ["E", "F", "W", "I", "B", "UP", "S", "ASYNC", "RUF", "PT", "SIM", "PL", "TID"]
+# PGH004: no blanket "# noqa"; RUF100 (via RUF): no unused noqa (review R-B-006-02).
+select = ["E", "F", "W", "I", "B", "UP", "S", "ASYNC", "RUF", "PT", "SIM", "PL", "TID", "PGH004"]
 ignore = ["PLR2004"]
 
 [tool.ruff.lint.flake8-tidy-imports.banned-api]

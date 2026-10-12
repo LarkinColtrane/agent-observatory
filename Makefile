@@ -7,13 +7,14 @@ BACKEND := backend
 FRONTEND := frontend
 UV_RUN := cd $(BACKEND) && .venv/bin
 
-.PHONY: help setup check governance backend-check frontend-check test test-integration up down
+.PHONY: help setup check governance backend-check frontend-check test test-integration up down reset
 
 help:
 	@echo "setup             install backend (uv.lock) and frontend (package-lock.json) deps"
 	@echo "check             governance + backend + frontend static checks and unit tests"
 	@echo "test-integration  backend integration tests (needs AO_TEST_* URLs; see compose.env.example)"
-	@echo "up / down         start / stop the local stack (needs .env from compose.env.example)"
+	@echo "up / down         start / stop the local stack, keeping its data (needs .env from compose.env.example)"
+	@echo "reset             DESTRUCTIVE: stop the stack and delete its volumes (local database)"
 
 setup:
 	cd $(BACKEND) && uv sync --locked --python $(PYTHON)
@@ -46,4 +47,8 @@ up:
 	docker compose up -d --build --wait
 
 down:
+	docker compose down
+
+# Destructive: deletes the pgdata volume (review R-A-006-02).
+reset:
 	docker compose down -v

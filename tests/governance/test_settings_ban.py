@@ -18,6 +18,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 SCANNED = [ROOT / "backend/src", ROOT / "backend/migrations"]
 NOQA = re.compile(r"#\s*noqa:[^#]*\bTID251\b")
+FILE_NOQA = re.compile(r"#\s*ruff\s*:\s*noqa", re.IGNORECASE)
+CONFIG = ROOT / "backend/src/observatory/core/config.py"
 
 
 def _is_type_checking(test: ast.expr) -> bool:
@@ -26,15 +28,29 @@ def _is_type_checking(test: ast.expr) -> bool:
     )
 
 
-def violations(source: str) -> list[int]:
-    """Line numbers carrying a TID251 noqa that is not a type-only import."""
+def violations(source: str, *, is_config: bool = False) -> list[int]:
+    """Line numbers that break the ban, whatever noqa comments are present.
+
+    - a ``noqa: TID251`` that is not on an import inside ``if TYPE_CHECKING:``;
+    - any file-level ``# ruff: noqa`` directive (it would silence TID251 too);
+    - any runtime ``Settings(...)`` call outside config.py (review R-B-006-02).
+    """
+    tree = ast.parse(source)
     allowed: set[int] = set()
-    for node in ast.walk(ast.parse(source)):
+    calls: set[int] = set()
+    for node in ast.walk(tree):
         if isinstance(node, ast.If) and _is_type_checking(node.test):
             for stmt in node.body:
                 if isinstance(stmt, ast.Import | ast.ImportFrom):
                     allowed.update(range(stmt.lineno, (stmt.end_lineno or stmt.lineno) + 1))
-    return [n for n, line in enumerate(source.splitlines(), 1) if NOQA.search(line) and n not in allowed]
+        if isinstance(node, ast.Call) and not is_config:
+            func = node.func
+            name = func.id if isinstance(func, ast.Name) else func.attr if isinstance(func, ast.Attribute) else None
+            if name == "Settings":
+                calls.add(node.lineno)
+    bad = {n for n, line in enumerate(source.splitlines(), 1) if NOQA.search(line) and n not in allowed}
+    bad |= {n for n, line in enumerate(source.splitlines(), 1) if FILE_NOQA.search(line)}
+    return sorted(bad | calls)
 
 
 class SettingsBanTests(unittest.TestCase):
@@ -42,7 +58,8 @@ class SettingsBanTests(unittest.TestCase):
         bad = []
         for base in SCANNED:
             for path in sorted(base.rglob("*.py")) if base.is_dir() else []:
-                bad += [f"{path.relative_to(ROOT)}:{n}" for n in violations(path.read_text(encoding="utf-8"))]
+                source = path.read_text(encoding="utf-8")
+                bad += [f"{path.relative_to(ROOT)}:{n}" for n in violations(source, is_config=path == CONFIG)]
         self.assertEqual(bad, [], "TID251 may only be suppressed on imports under `if TYPE_CHECKING:`")
 
     def test_type_checking_import_is_allowed(self) -> None:
@@ -65,6 +82,17 @@ class SettingsBanTests(unittest.TestCase):
             "s = config.Settings()  # noqa: TID251\n"
         )
         self.assertEqual(violations(src), [4])
+
+    def test_runtime_construction_is_rejected_even_with_blanket_noqa(self) -> None:
+        src = "from observatory.core import config\nS = config.Settings()  # noqa\nT = Settings()\n"
+        self.assertEqual(violations(src), [2, 3])
+
+    def test_file_level_ruff_noqa_is_rejected(self) -> None:
+        src = "# ruff: noqa: TID251\nfrom observatory.core.config import Settings\n"
+        self.assertEqual(violations(src), [1])
+
+    def test_config_module_may_construct_settings(self) -> None:
+        self.assertEqual(violations("S = Settings()\n", is_config=True), [])
 
     def test_other_if_blocks_are_not_exempt(self) -> None:
         src = "if DEBUG:\n    from observatory.core.config import Settings  # noqa: E501,TID251\n"

@@ -44,7 +44,7 @@ checks:
     result: pass
     evidence: "https://github.com/LarkinColtrane/agent-observatory/actions/runs/38148626706 (job backend-integration: 306 passed)"
 risks_and_open_questions:
-  - Prod migrate under least privilege (TD-019), env-var secrets (TD-020), Redis without AUTH/TLS (TD-021); a cancelled mid-query probe holds a pool slot ~10 s (psycopg), bounded by single-flight readiness.
+  - Prod migrate under least privilege (TD-019), env-var secrets (TD-020), Redis without AUTH/TLS (TD-021); a cancelled mid-query probe holds its connection ~10 s while psycopg gives it up; readiness recovery after stalled connections is handled in AO-P1-006 (bounded single-flight probe plus pool reset on failure, review R-A-006-01 / R-B-006-01).
 new_assumptions: [A-011]
 new_debt: []
 specialist_review_needed: [security, data-integrity, concurrency]
