@@ -308,12 +308,14 @@ debt:
       in logs (review R-A-002-205). Safe, but it hides metrics an agent
       observatory needs once usage data flows through the system.
     severity: low
-    status: open
+    status: repaid
     owner: coordinator
     component: C11
     blocks: [P2]
     repayment_trigger: A superseding ADR (before the P2 event protocol freezes) defines a narrow exemption, e.g. keys ending in _tokens or token_count with integer values, implemented and tested in core.logging.
     recorded: 2026-10-11
+    history:
+      - 2026-10-12: repaid by AO-P2-001 — ADR-0007 replaces the suggested key-pattern exemption with a typed allowlist (owner decision at P2 kickoff) — only an exact, re-validated observatory.core.telemetry.UsageMetrics passed as a structured field survives redaction; SECRET_KEY_PARTS and scrub_text are unchanged. Evidence is backend/tests/unit/test_telemetry.py (numeric usage survives JSON and console output; credential-shaped values under token keys, nested secrets, secret-named wrapper keys, UsageMetrics and Money subclasses, model_construct, mutated and tampered objects on every log path, string/bool/float/negative/huge numbers all stay redacted or are rejected) and Reviewer A and B sign-off in docs/reviews/phase-2-reviews.md.
   - id: TD-012
     title: Log text scrubber misses a few rare key/value shapes
     description: >

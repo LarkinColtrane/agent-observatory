@@ -1,0 +1,57 @@
+task_id: AO-P2-001
+from: coordinator
+to: coordinator
+status: complete
+commit: ea7be5b
+branch: p2/001-td022-usage-telemetry
+summary: >
+  TD-022 repaid with ADR-0007. An exact, re-validated
+  observatory.core.telemetry.UsageMetrics passed as a structured log field is
+  logged with its numeric fields; key names never earn the exemption, and
+  SECRET_KEY_PARTS and scrub_text are unchanged. Usage is resolved once in
+  redact on every log path; Money subclasses and hand-built or tampered objects
+  fail closed. Phase 2 is opened with its plan, closure checklist and the
+  AO-P2-001/002 task contracts.
+inspected:
+  - docs/adr/0003-phase-order-and-event-protocol-deferral.md
+  - docs/adr/0005-phase-1-foundation-contract.md
+  - docs/technical-debt.yaml
+  - docs/development-operating-contract.md
+  - docs/agent-efficiency.md
+  - backend/src/observatory/core/logging.py
+searched_for_reuse:
+  - query: existing usage, metrics or telemetry types in backend/src
+    result: none; core.telemetry is new, and the event protocol will reuse it (ADR-0007 decision 5).
+changes:
+  - {path: docs/adr/0007-typed-usage-telemetry-in-logs.md, kind: added, note: the decision}
+  - {path: backend/src/observatory/core/telemetry.py, kind: added, note: UsageMetrics, Money, usage_log_fields}
+  - {path: backend/src/observatory/core/logging.py, kind: modified, note: typed usage resolved once in redact and rendered by both formatters}
+  - {path: backend/tests/unit/test_telemetry.py, kind: added, note: model and adversarial log tests}
+  - {path: tests/governance/test_check_governance.py, kind: modified, note: explicit P2 fixture state}
+  - {path: docs/phases/P2-plan.md, kind: added, note: plan}
+contracts:
+  consumed: [docs/adr/0005-phase-1-foundation-contract.md@contract-phase1-foundation-v1.0.0]
+  changed: []
+acceptance_criteria:
+  - {id: AC1, met: true, evidence: "test_usage_survives_json_logging, test_nested_usage_survives_json_logging, test_usage_survives_console_logging"}
+  - {id: AC2, met: true, evidence: "test_untyped_usage_is_still_redacted, test_secret_named_key_wins_over_typed_usage, test_usage_in_message_text_is_still_scrubbed"}
+  - {id: AC3, met: true, evidence: "test_token_counts_reject_everything_but_bounded_ints, test_forged_usage_never_leaks_on_any_path, test_money_subclass_is_rejected_at_construction; mutation checks killed (isinstance, no re-validation, typed-before-key, no subclass guard)"}
+  - {id: AC4, met: true, evidence: "backend/tests/unit/test_logging.py unchanged and passing"}
+checks:
+  - level: L1
+    command: cd backend && .venv/bin/ruff check . && .venv/bin/ruff format --check . && .venv/bin/mypy && .venv/bin/lint-imports
+    ran: true
+    result: pass
+    evidence: "All checks passed; mypy no issues in 16 files; 2 contracts kept (re-run by Reviewers A and B)"
+  - level: L2
+    command: cd backend && .venv/bin/pytest tests/unit -q && .venv/bin/bandit -q -r src
+    ran: true
+    result: pass
+    evidence: "582 passed; bandit clean; governance checker, artifacts and 212 governance tests pass in a fresh clone"
+risks_and_open_questions:
+  - Console output preserves typed usage at top level only; nested usage is rendered as scrubbed text (safe direction).
+new_assumptions: []
+new_debt: []
+specialist_review_needed: [security]
+rollback: Revert the squash commit; usage is redacted again and P2 returns to not_started (TD-022 open).
+next_steps: AO-P2-002 event-protocol contract (ADR-0008).

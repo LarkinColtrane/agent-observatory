@@ -21,7 +21,10 @@ adapter as a potential source of hostile or sensitive input.
   secret manager; commit only `*.example` files with placeholder values.
 - **Never logged.** Loggers must redact known secret fields
   (`token`, `secret`, `password`, `api_key`, `authorization`, `cookie`,
-  `private_key`, …). Exceptions must not embed credentials.
+  `private_key`, …). Exceptions must not embed credentials. The only
+  exception is typed usage telemetry (`UsageMetrics`, ADR-0007): an exact,
+  re-validated type, never a key name, so `input_tokens: 5` in a plain
+  mapping is still redacted.
 - `.gitignore` excludes env files, credential stores, key files, cloud/tool
   configs, database dumps, local data directories, and recordings.
 - Tooling (all run without printing matched values):

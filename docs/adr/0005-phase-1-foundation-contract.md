@@ -1,6 +1,6 @@
 # ADR-0005: Phase 1 engineering-foundation contract
 
-- Status: accepted — frozen at tag `contract-phase1-foundation-v1.0.0`
+- Status: accepted — frozen at tag `contract-phase1-foundation-v1.0.0`; §3 gains one typed exception in [ADR-0007](0007-typed-usage-telemetry-in-logs.md)
 - Date: 2026-10-10
 - Deciders: Coordinator (proposed); Reviewer A and Reviewer B (sign-off)
 - Components: C11, C12, C13 (seam only), C4/C5 (seam only)

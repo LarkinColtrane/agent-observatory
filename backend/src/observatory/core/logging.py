@@ -15,6 +15,10 @@ Every record emitted through the handler installed by ``configure_logging``:
 Each formatter finally scrubs its whole output once more (JSON: every key and
 string of the payload; console: the full text, with control characters
 escaped) as a backstop for anything rendered outside the layers above.
+
+The one exception (ADR-0007): a structured field whose value is exactly a
+``UsageMetrics`` is written as its re-validated numeric fields, unless its key
+is secret-named. No key name earns this; ``{"input_tokens": 5}`` is redacted.
 Text masking is pattern-based and best-effort: secrets must still never be
 logged on purpose.
 """
@@ -30,10 +34,13 @@ import sys
 import threading
 from collections.abc import Mapping
 from contextvars import ContextVar
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from functools import lru_cache
 from types import TracebackType
 from typing import TYPE_CHECKING, Any, Final
+
+from observatory.core.telemetry import UsageMetrics, usage_log_fields
 
 if TYPE_CHECKING:  # annotation only: Settings is built solely by get_settings()
     from observatory.core.config import Settings  # noqa: TID251 (type only; never constructed)
@@ -109,6 +116,38 @@ _HANDLER_MARK: Final = "_observatory_handler"
 _FRAMEWORK_LOGGERS: Final = ("uvicorn", "uvicorn.error", "uvicorn.access")
 
 
+@dataclass(frozen=True, slots=True)
+class _ValidatedUsage:
+    """An exact ``UsageMetrics`` resolved once by ``redact`` (ADR-0007).
+
+    Holds only the re-validated fields (``None`` if re-validation failed), so no
+    raw usage object reaches a formatter on any path (R-A-P2-001-02).
+    """
+
+    fields: Mapping[str, object] | None
+
+    def render(self) -> object:
+        return REDACTED if self.fields is None else dict(self.fields)
+
+    def __str__(self) -> str:
+        if self.fields is None:
+            return REDACTED
+        return json.dumps(dict(self.fields), sort_keys=True, separators=(",", ":"))
+
+    __repr__ = __str__
+
+
+def _resolve_usage(value: object) -> _ValidatedUsage:
+    """Re-validate usage; an existing ``_ValidatedUsage`` is never trusted as given (R-A-P2-001-05)."""
+    if type(value) is _ValidatedUsage:
+        fields = value.fields
+        try:
+            value = None if fields is None else UsageMetrics.model_validate(dict(fields))
+        except Exception:  # any failure on a hand-built instance fails closed
+            value = None
+    return _ValidatedUsage(usage_log_fields(value))
+
+
 def is_secret_key(key: object) -> bool:
     """True if ``key`` names a secret (substring match ignoring case, ``-`` and ``_``)."""
     return _is_secret_name(key.decode("latin-1") if isinstance(key, bytes) else str(key))
@@ -161,7 +200,8 @@ def redact(value: Any, *, stringify: bool = True, _depth: int = 0) -> Any:
     """Return a redacted copy of ``value`` (the input is never mutated).
 
     Mapping values under secret-named keys, and the second element of
-    ``(secret_key, value)`` pairs in sequences, become ``[REDACTED]``; mappings
+    ``(secret_key, value)`` pairs in sequences, become ``[REDACTED]``; an exact
+    ``UsageMetrics`` under any other key becomes its re-validated fields; mappings
     and sequences are walked recursively; strings and keys go through
     ``scrub_text``. With ``stringify`` (JSON output) other objects are rendered
     with ``str()`` and scrubbed and non-finite floats become strings; without it
@@ -170,6 +210,8 @@ def redact(value: Any, *, stringify: bool = True, _depth: int = 0) -> Any:
     """
     if _depth > _MAX_DEPTH:
         return _TRUNCATED
+    if type(value) in (UsageMetrics, _ValidatedUsage):
+        value = _resolve_usage(value)
     if isinstance(value, str):
         return scrub_text(value)
     deeper = _depth + 1
@@ -185,7 +227,9 @@ def redact(value: Any, *, stringify: bool = True, _depth: int = 0) -> Any:
         return tuple(items) if not stringify and isinstance(value, tuple) else items
     if value is None or isinstance(value, bool | int | float):
         return _redact_number(value, stringify)
-    return scrub_text(str(value)) if stringify else value
+    # Resolved typed telemetry (ADR-0007) is kept for the formatter.
+    keep = not stringify or type(value) is _ValidatedUsage
+    return value if keep else scrub_text(str(value))
 
 
 def _redact_number(value: float | None, stringify: bool) -> Any:
@@ -229,6 +273,13 @@ def _extras(record: logging.LogRecord) -> dict[str, Any]:
     }
     redacted: dict[str, Any] = redact(extras)
     return redacted
+
+
+def _json_default(value: object) -> object:
+    """``json.dumps`` fallback: typed usage as re-validated fields, anything else as scrubbed text."""
+    if type(value) is _ValidatedUsage:
+        return value.render()
+    return scrub_text(str(value))
 
 
 def _escape_controls(text: str) -> str:
@@ -284,7 +335,7 @@ class JsonFormatter(_RedactingFormatter):
         if exc is not None:
             payload["exc_info"] = exc
         # Backstop: every key and string scrubbed once more; the output stays valid JSON.
-        return json.dumps(redact(payload), default=str, allow_nan=False)
+        return json.dumps(redact(payload), default=_json_default, allow_nan=False)
 
 
 class ConsoleFormatter(_RedactingFormatter):
@@ -296,10 +347,16 @@ class ConsoleFormatter(_RedactingFormatter):
             f"[{self._request_id(record) or '-'}] {_render_message(record)}"
         )
         extras = _extras(record)
-        if extras:
-            line += " " + " ".join(f"{k}={v!r}" for k, v in extras.items())
+        usage = {k: v for k, v in extras.items() if type(v) is _ValidatedUsage}
+        plain = [f"{k}={v!r}" for k, v in extras.items() if k not in usage]
+        if plain:
+            line += " " + " ".join(plain)
         # Backstop scrub, then escape control characters (CR/LF included).
         text = _escape_controls(scrub_text(line))
+        # Typed usage (top level only) is appended after the backstop: its text is built
+        # solely from fixed field names and validated numbers (ADR-0007).
+        for key, value in usage.items():
+            text += f" {_escape_controls(scrub_text(key))}={value}"
         exc = self._exception_text(record)
         if exc is not None:
             text += "".join("\n  " + _escape_controls(ln) for ln in scrub_text(exc).split("\n"))

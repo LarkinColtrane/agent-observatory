@@ -36,7 +36,11 @@ phases:
     gate_tag: phase-P1-v1.0.0           # annotated (500c0dc) -> bb84e30; created by release-tags run 38203813651
     review_record: docs/reviews/phase-1-gate-review.md
     blocked_by: []
-  - {id: P2, name: Universal agent event protocol, status: not_started, blocked_by: [TD-022]}
+  - id: P2
+    name: Universal agent event protocol
+    status: in_progress                 # opened 2026-10-12 once TD-022 was repaid (AO-P2-001, ADR-0007)
+    plan: docs/phases/P2-plan.md
+    blocked_by: []
   - {id: P3, name: Adapter / SDK layer, status: not_started, blocked_by: [TD-012, TD-024]}
   - {id: P4, name: Agent state engine, status: not_started, blocked_by: []}
   - {id: P5, name: Realtime observability, status: not_started, blocked_by: []}
@@ -96,6 +100,7 @@ contracts:
     reviewed_by: [reviewer-a, reviewer-b]
     tag: null
   - id: phase1-foundation
+    # §3 amended by ADR-0007 (typed usage telemetry, one exact-type exception); read the two together.
     review_record: docs/reviews/phase-1-contract-review.md
     path: docs/adr/0005-phase-1-foundation-contract.md
     version: 1.0.0
@@ -121,7 +126,11 @@ contracts:
 # Active path claims (coordinator records at assignment, releases at integration).
 # Each: {task: AO-P<n>-<seq>, owner: <agent>, paths: [<path prefix>, ...]}
 # AO-P1-001 released on merge of PR #3 (a8ea522); AO-P1-005 with PR #5; AO-P1-002..004 with PR #6.
-claims: []
+# AO-P2-001 (coordinator) is released when its PR merges; AO-P2-002 starts after it.
+claims:
+  - task: AO-P2-002
+    owner: coordinator
+    paths: [docs/adr/0008-universal-event-protocol.md, docs/contracts, backend/pyproject.toml]
 
 # Annotated tags to be created by .github/workflows/release-tags.yml on main
 # (ADR-0005 §7). Entries stay as the audit record; existing tags are never moved.
