@@ -29,10 +29,11 @@ phases:
     blocked_by: []
   - id: P1
     name: Engineering foundation
-    status: gate_review
+    status: closed
     plan: docs/phases/P1-plan.md
     gate_report: docs/phases/P1-gate-report.md
     approved_not_applicable: []
+    gate_tag: phase-P1-v1.0.0           # annotated (500c0dc) -> bb84e30; created by release-tags run 38203813651
     review_record: docs/reviews/phase-1-gate-review.md
     blocked_by: []
   - {id: P2, name: Universal agent event protocol, status: not_started, blocked_by: [TD-022]}
