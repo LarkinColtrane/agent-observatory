@@ -27,7 +27,8 @@ out_of_scope: [implementation (AO-P2-003/004), ingestion, storage, adapters]
 acceptance_criteria:
   - {id: AC1, statement: every item of the owner's P2 brief is decided in ADR-0008 with a reason, verified_by: docs/reviews/phase-2-reviews.md}
   - {id: AC2, statement: Reviewer A and Reviewer B approve the contract, verified_by: docs/reviews/phase-2-reviews.md}
-  - {id: AC3, statement: import-linter places observatory.events between the adapters of later phases and observatory.core, verified_by: lint-imports}
+  - {id: AC3, statement: "import-linter places observatory.events between api|db|cache and observatory.core (optional-layer syntax until the package exists)", verified_by: lint-imports}
+  - {id: AC4, statement: "the usage event states its scope (delta or cumulative, and unit) and estimated cost carries pricing provenance; non-ISO units stay unknown (R-B-P2-001-01, R-B-P2-001-09)", verified_by: docs/adr/0008-universal-event-protocol.md}
 testing:
   level_1: python3 -I scripts/check-governance.py && python3 -I scripts/check-artifacts.py
   level_2: cd backend && .venv/bin/lint-imports

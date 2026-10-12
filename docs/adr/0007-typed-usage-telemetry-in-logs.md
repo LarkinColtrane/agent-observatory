@@ -87,4 +87,4 @@ resolved, because the event protocol carries usage.
 
 ## Review
 
-- Reviewer A: pending · Reviewer B: pending — `docs/reviews/phase-2-reviews.md`.
+- Reviewer A: APPROVE (round 3) · Reviewer B: APPROVE_WITH_NOTES (round 2, notes applied) — `docs/reviews/phase-2-reviews.md`.
