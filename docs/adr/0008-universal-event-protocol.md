@@ -363,7 +363,7 @@ NFKC form; a hit on either counts.
   | JWT | `B eyJ[A-Za-z0-9_-]{8,}\.eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]*` |
   | Bearer/Basic credential | `(?i:bearer\|basic)\s+[A-Za-z0-9._~+/-]{16,}=*` |
   | PEM/PGP private key | `-----BEGIN [A-Z ]{0,40}PRIVATE KEY( BLOCK)?-----` |
-  | URL userinfo | `://`, then a user part of characters other than `/`, whitespace, `@` and `:`, then `:`, then a password part of characters other than `/`, whitespace and `@`, then `@` |
+  | URL userinfo | in the whitespace-free token after `://`, a `:` before the token's last `@`, with no `/` between `://` and that `:`; evaluated per token (possessive token match, then a last-`@` search), so it stays linear and a password may contain `/` |
 
   So `task-42`, `desk-ops` and "Basic authentication enabled" are not hits.
 - **Text detectors** run on Text, ProviderRef, ToolName, ModelName and
@@ -410,8 +410,10 @@ U+FDFA.
 
 `command` is a single line of at most 1024 characters. Adapters emit the
 command up to its first newline or heredoc marker, then apply this order:
-sanitise, truncate to fit, append ` [TRUNCATED]` when cut, and sanitise again.
-A cut can therefore never leave half a secret or half a `[REDACTED]`.
+sanitise, truncate to fit, append ` [TRUNCATED]` when cut, and sanitise
+again. They repeat truncate-and-sanitise until the result is a fixed point of
+at most 1024 characters. A cut can therefore never leave half a secret or
+half a `[REDACTED]`.
 
 ### 10.5 RelPath
 
@@ -552,9 +554,10 @@ nodes have exactly the built-in types `dict` (with exact `str` keys), `list`,
 (`too_deep`) and canonical size ≤ 64 KiB (`too_large`), then runs checks 7–15.
 
 **Every `Event` instance has passed checks 9–15:** construction runs the
-secret scan too, using the current `SECRET_RULES_VERSION` unless the caller
-names another. An event loaded from the store is validated with the
-secret-rules version recorded at its acceptance (`RecordedEvent`). Every rules
+secret scan too. Accepting a new event (`parse_event`, `validate_event`,
+ingestion, SDK emission) always uses the current `SECRET_RULES_VERSION` and
+cannot name another. An older version may be named only when loading a
+stored event, and must equal its `RecordedEvent.secret_rules_version`. Every rules
 version is kept, as validators are, so a later rules patch never makes
 replay fail (A-002). A newer rules version is applied to stored events only
 by the explicit re-scan operation, whose hits become tombstones (§14). `canonical_json`, `fingerprint`, `content_fingerprint`,
@@ -598,7 +601,16 @@ canonical_json(e)`. JSON lines files hold one canonical event per line.
   what was erased, plus `erased_at` and `reason_code`. It also keeps every
   identifier- and metadata-class field (§10.6) except `usage` and
   `extensions`: `event_type`, `time.*`, the `scope.*` ids, `source.*` and
-  `causality.*`. Every `sensitive-*` field is dropped.
+  `causality.*`, and payload identifier- and metadata-class fields under the
+  same rule. Every `sensitive-*` field is dropped.
+  - A field that is the location of a hit, or that contains one, is dropped
+    too, whatever its class.
+  - A dropped field inside an object drops only that field, so a tombstone
+    may lack fields that an event requires.
+  - `event_id`, `workspace_id`, `event_type` and the two fingerprints are
+    always kept; none of them can carry free text.
+  - When the hit is in `provider_event_id`, the derived `event_id` is a
+    guessing oracle for it, which is why rotation comes first.
   - Replays treat a tombstone as an event of unknown content.
   - Canonical order and gap detection treat it at its original position.
   - An incoming event whose `event_id` matches a tombstone is classified
