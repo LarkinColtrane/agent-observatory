@@ -26,9 +26,8 @@ debt:
     repayment_trigger: Phase 1 L3 gate (all application tooling running in CI).
     recorded: 2026-10-10
     history:
-      - 2026-10-12: repaid — Phase 1 Level 3 gate (docs/phases/P1-gate-report.md) ran Ruff, mypy --strict, pytest with real services, ESLint, tsc, Prettier, Vitest, Docker/Compose (CI), Alembic up/down/up, pip-audit, npm audit, bandit and import-linter; all run in CI on every PR. Product failure injection (adapter disconnect, malformed/duplicate/out-of-order events, slow consumer) has no product to exercise yet and moves to the event-pipeline phases' own Level 3 gates (item 9); the foundation's failure modes were injected at this gate.
-    history:
       - 2026-10-10: governance/hygiene portion repaid in pre-Phase-1 cleanup; remaining scope is Phase 1 work, so it blocks P2 rather than P1.
+      - 2026-10-12: repaid — Phase 1 Level 3 gate (docs/phases/P1-gate-report.md) ran Ruff, mypy --strict, pytest with real services, ESLint, tsc, Prettier, Vitest, Docker/Compose (CI), Alembic up/down/up, pip-audit, npm audit, bandit and import-linter; all run in CI on every PR. Product failure injection (adapter disconnect, malformed/duplicate/out-of-order events, slow consumer) has no product to exercise yet and moves to the event-pipeline phases' own Level 3 gates (item 9); the foundation's failure modes were injected at this gate.
 
   - id: TD-002
     title: Project not yet in its dedicated private repository
