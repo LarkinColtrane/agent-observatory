@@ -1,0 +1,58 @@
+task_id: AO-P2-002
+from: coordinator
+to: coordinator
+status: complete
+commit: bf627d7
+branch: p2/002-contract
+summary: >
+  ADR-0008, the universal event protocol v1 contract, approved by Reviewer A
+  and Reviewer B after four rounds (docs/reviews/phase-2-contract-review.md).
+  It covers envelope, scalar types, identity and derived event ids, isolation,
+  time and ordering, 16 event types, usage and cost, payload safety with two
+  secret-detector tiers, extensions, validation codes and dispositions (no raw
+  storage of rejected events), canonical JSON, fingerprints, duplicates,
+  erasure, versioning, the Python interface and the fixture plan. The
+  observatory.events import-linter layer is registered as optional until
+  AO-P2-003 creates the package.
+inspected:
+  - docs/adr/0003-phase-order-and-event-protocol-deferral.md
+  - docs/adr/0007-typed-usage-telemetry-in-logs.md
+  - docs/roadmap.md
+  - docs/security-baseline.md
+  - backend/src/observatory/core/logging.py
+  - backend/src/observatory/core/telemetry.py
+searched_for_reuse:
+  - query: existing event, envelope or schema code in backend/src
+    result: none (P2 is the first protocol phase); reuses UsageMetrics (ADR-0007) and ADR-0005 key normalisation.
+changes:
+  - {path: docs/adr/0008-universal-event-protocol.md, kind: added, note: the contract}
+  - {path: backend/pyproject.toml, kind: modified, note: optional observatory.events layer}
+  - {path: docs/governance-state.yaml, kind: modified, note: event-protocol approved; claims}
+  - {path: docs/assumptions.yaml, kind: modified, note: A-013}
+  - {path: docs/technical-debt.yaml, kind: modified, note: TD-026}
+contracts:
+  consumed: []
+  changed: []
+acceptance_criteria:
+  - {id: AC1, met: true, evidence: "both reviewers checked the owner's P2 brief item by item (docs/reviews/phase-2-contract-review.md)"}
+  - {id: AC2, met: true, evidence: "Reviewer A APPROVE, Reviewer B APPROVE_WITH_NOTES at bf627d7"}
+  - {id: AC3, met: true, evidence: "lint-imports 2 kept; a probe package importing observatory.api broke the layered contract"}
+  - {id: AC4, met: true, evidence: "ADR-0008 section 9 (accounting, unit, unit_id, pricing_ref, ISO allowlist)"}
+checks:
+  - level: L1
+    command: python3 -I scripts/check-governance.py && python3 -I scripts/check-artifacts.py
+    ran: true
+    result: pass
+    evidence: "PASS / PASS in a fresh single-branch clone; 212 governance tests OK"
+  - level: L2
+    command: cd backend && .venv/bin/lint-imports
+    ran: true
+    result: pass
+    evidence: "Contracts: 2 kept, 0 broken"
+risks_and_open_questions:
+  - Homoglyph evasion and the Id text-tier limit (TD-026).
+new_assumptions: [A-013]
+new_debt: [TD-026]
+specialist_review_needed: [security]
+rollback: Revert the squash commit; the contract returns to not_drafted-equivalent state (in_review) and nothing builds on it.
+next_steps: AO-P2-003 protocol core (w-p-protocol).

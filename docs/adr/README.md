@@ -14,4 +14,4 @@ must be listed here (the governance checker enforces both directions).
 | [0004](0004-dedicated-private-repository.md) | Dedicated private repository | accepted (implemented; protection pending, TD-004) |
 | [0006](0006-dependency-security-patch-exception.md) | Security-patch exception to the dependency age cutoff | accepted |
 | [0007](0007-typed-usage-telemetry-in-logs.md) | Typed usage telemetry survives log redaction (repays TD-022) | accepted |
-| [0008](0008-universal-event-protocol.md) | Universal agent event protocol v1 (contract `event-protocol`) | proposed |
+| [0008](0008-universal-event-protocol.md) | Universal agent event protocol v1 (contract `event-protocol`) | accepted (approved; frozen at the end of P2) |

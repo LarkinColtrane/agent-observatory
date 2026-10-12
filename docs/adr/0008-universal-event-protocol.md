@@ -1,6 +1,6 @@
 # ADR-0008: Universal agent event protocol v1
 
-- Status: proposed (contract `event-protocol` v1.0.0; frozen at the end of P2 per ADR-0003 §3)
+- Status: accepted (contract `event-protocol` v1.0.0, approved; frozen at the end of P2 per ADR-0003 §3)
 - Date: 2026-10-12
 - Deciders: Coordinator (proposed); Reviewer A and Reviewer B (sign-off)
 - Components: C1 (owner), C2, C3, C4, C5, C6 (consumers)
@@ -377,8 +377,8 @@ NFKC form; a hit on either counts.
     attached with `=`: `--password X`, `--api-key=X`;
   - `-p<value>` attached, when the command's first word is `mysql`,
     `mysqldump`, `mysqladmin`, `mariadb` or `mariadb-dump`. The first word
-    is taken after skipping `sudo`, `env` and `NAME=value` words, and is
-    compared by basename;
+    is taken after skipping `sudo` and `env` together with their options and
+    option arguments, and `NAME=value` words. It is compared by basename;
   - `-u`/`--user` values of the form `user:pass`;
   - `set <secret-named key> <value>`.
 - **Known limit (TD-026):** Ids skip the text tier so that structural ids
@@ -418,7 +418,8 @@ U+FDFA.
 command up to its first newline or heredoc marker, then apply this order:
 sanitise, truncate to fit, append ` [TRUNCATED]` when cut, and sanitise
 again. They repeat truncate-and-sanitise until the result is a fixed point of
-at most 1024 characters. A cut can therefore never leave half a secret or
+at most 1024 characters. The loop ends because each round keeps a strictly
+shorter prefix. A cut can therefore never leave half a secret or
 half a `[REDACTED]`.
 
 ### 10.5 RelPath
@@ -619,6 +620,9 @@ canonical_json(e)`. JSON lines files hold one canonical event per line.
     guessing oracle for it, which is why rotation comes first.
   - Replays treat a tombstone as an event of unknown content.
   - Canonical order and gap detection treat it at its original position.
+    If the hit was in `source.stream_id` and that field was dropped, the
+    tombstone is ordered as a stream-less event at its kept time, and gap
+    detection reports the slot as erased.
   - An incoming event whose `event_id` matches a tombstone is classified
     against the tombstone's two fingerprints, and is never re-accepted. Erasure covers every copy of
   the event: projections, exports and trace files, caches, indexes, and
@@ -770,4 +774,4 @@ rejected corpus of AO-P2-005 is the portable conformance evidence.
 
 ## Review
 
-- Reviewer A: pending · Reviewer B: pending — `docs/reviews/phase-2-reviews.md`.
+- Reviewer A: APPROVE (round 4) · Reviewer B: APPROVE_WITH_NOTES (round 4, notes applied) — `docs/reviews/phase-2-contract-review.md`.
