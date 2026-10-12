@@ -137,7 +137,9 @@ class Positive(ArtifactCase):
     def test_fixture_with_valid_handoff_passes(self) -> None:
         rc, out = run_inprocess(self.root)
         self.assertEqual(rc, 0, out)
-        self.assertIn("7 task(s), 1 handoff(s)", out)
+        handoffs = len(list(self.path(TASKS).glob("*.handoff.yaml")))  # fixture count, not a live constant
+        self.assertGreaterEqual(handoffs, 1)
+        self.assertIn(f"7 task(s), {handoffs} handoff(s)", out)
 
     def test_not_applicable_with_note_still_allowed_on_complete(self) -> None:
         rc, out = run_inprocess(self.root)  # fixture has an L2 not_applicable check
