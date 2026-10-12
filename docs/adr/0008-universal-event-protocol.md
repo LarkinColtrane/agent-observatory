@@ -401,7 +401,7 @@ sanitised; an adapter hashes a native id that hits a credential detector (§4).
 
 Known limit (TD-026): cross-script homoglyphs, such as a Cyrillic `а` in
 `pаssword=`, are not folded by NFKC and can evade the text tier.
-`SECRET_RULES_VERSION` pins `unicodedata.unidata_version` (15.1.0 for v1). A
+`SECRET_RULES_VERSION` pins `unicodedata.unidata_version` (15.0.0 for v1, the version Python 3.12 ships; see C0 below). A
 test asserts it, and a change is a rules patch. NFKC can expand a string up
 to 18 times, so the 64 KiB timing test includes NFKC-expanding input such as
 U+FDFA.
@@ -754,6 +754,40 @@ rejected corpus of AO-P2-005 is the portable conformance evidence.
   - adversarial tests for every rejection code and each detector, with one
     positive and one negative case each;
   - a 64 KiB worst-case timing test for the detectors.
+
+## Clarifications during implementation (before the freeze)
+
+AO-P2-003 raised these points and the coordinator ruled on them. Both
+reviewers signed off on them (`docs/reviews/phase-2-contract-review.md`).
+They make the contract exact without changing its design.
+
+- **C0 (erratum).** The pinned Unicode data version for secret rules v1 is
+  15.0.0, the version of the pinned runtime (Python 3.12). It is not 15.1.0.
+- **C1.** At check 9 the field type is not known yet. The text tier is
+  skipped only for a string at an Id or RelPath position that already
+  satisfies that rule; every other string gets both tiers.
+- **C2.** The quarantine metadata are optional fields of `Rejected`.
+  `source.adapter` is kept only if both its name and its version are valid.
+  `spec_version` matches `^(0|[1-9][0-9]{0,3})\.(0|[1-9][0-9]{0,3})$`.
+- **C3.** For `validate_event`, "raw" is the canonical-form serialisation of
+  the input tree, and `raw_length` is 0 if the tree cannot be serialised. A
+  container object reachable more than once is `invalid_json` (drop), which
+  blocks reference bombs.
+- **C4.** Each `Event` privately carries the secret-rules version it was
+  validated under: the current version, or the recorded one through
+  `load_recorded`. The pure functions re-validate under that version.
+- **C5.** If `sanitize_text` finds a hit only in the NFKC form, it sanitises
+  the NFKC form and repeats until the result is stable. If the result never
+  settles, the whole string becomes `[REDACTED]`.
+- **C6.** Each detector detail resolves toward over-masking:
+  - a fixed table of `sudo` and `env` options that take an argument;
+  - `-u` matched in attached form too;
+  - `set` matched case-insensitively;
+  - secret-named options matched after one dash or two.
+- **C7.** Inside `extensions`, the namespace object is depth 1. An
+  extension-event payload follows the namespace rules, including being non-empty.
+- **C8.** `validate_event`'s pre-check `too_large` is drop, as the §12
+  invariant requires.
 
 ## Consequences
 
