@@ -793,6 +793,23 @@ They make the contract exact without changing its design.
 - **C8.** `validate_event`'s pre-check `too_large` is drop, as the §12
   invariant requires.
 
+AO-P2-004 and AO-P2-005 raised five more readings, which the coordinator
+accepted. Reviewers A and B check them in the AO-P2-006 implementation review.
+
+- **C9.** A missing or unequal required scope, a cumulative usage event
+  without `unit_id`, and a `unit_id` that does not equal the required scope
+  field are `schema_violation`. Only the §4 derivation rule and the listed
+  self references are `invalid_reference`.
+- **C10.** A vendor name equal to a core family name is rejected:
+  `x-session.*` fails at `/event_type`, while `x-sessionco.*` is accepted.
+- **C11.** ToolName and ModelName are printable ASCII `0x21`–`0x7e`, so a
+  space is not allowed, as for ProviderRef.
+- **C12.** The `unit_id` equality rule applies whenever `unit_id` is
+  present, delta events included.
+- **C13.** For §18, "the same projection" is compared with the
+  `<provider>:` prefix removed from entity ids. §4 qualifies every entity id
+  by provider, so ids from two shapes can never be literally equal.
+
 ## Consequences
 
 - **Positive:**

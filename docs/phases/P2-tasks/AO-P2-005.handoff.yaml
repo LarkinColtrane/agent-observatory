@@ -1,0 +1,94 @@
+task_id: AO-P2-005
+from: w-p-protocol
+to: coordinator
+status: complete
+commit: b88d93e
+branch: p2/005-fixtures
+summary: >
+  Three SYNTHETIC provider shapes (A transcript JSONL, B orchestrator webhooks,
+  C minimal Python agent steps) and test-only mappers map one shared scenario to
+  ADR-0008 events. Their projections (event_type, scope, payload) are equal on the
+  overlap: A and C share 10 events, B and C share 10, and the two agent.spawned
+  events are common to all three. Ids, time and provenance differ as §§4 and 6
+  require. The reference trace reference-trace-v1.jsonl (58 canonical events, 5
+  agents) is generated deterministically and pinned by SHA-256
+  6443d5f78ac0397c46dd5e514c675f8a82bd2dac7253b06563bb74663d96dbd8. Golden events
+  pin canonical bytes and fingerprints as literals. Seeded property tests and an
+  adversarial suite run through the bytes path.
+
+  A-001 evidence, provider fields each shape cannot map:
+  - A: assistant text blocks, thinking blocks, the Task prompt, tool_result text,
+    Write file bodies (only the line count is kept), toolUseResult stdout/stderr,
+    costUSD (a binary float, never money), service_tier, requestId, the
+    parentUuid chain (a conversation link, not a cause), isSidechain, client
+    version, the Bash description, per-call durations, and the Task call itself
+    (emitted only as agent.spawned). cwd is used only to relativise paths.
+  - B: delivery_id, the signature header (authentication is ingestion's), the
+    delivery attempt count, task description, priority and estimate_hours, the
+    agent e-mail, and review comment text.
+  - C: source times (occurred_at stays absent), every id (the SDK assigns stream,
+    seq, UUIDv7 and message ids), the exception traceback (only an error code
+    and a sanitised message are kept), and the message note (message.sent
+    carries no content).
+inspected:
+  - docs/adr/0008-universal-event-protocol.md (sections 4, 6, 7, 10.4, 15, 18)
+  - docs/phases/P2-tasks/AO-P2-005.task.yaml
+  - docs/assumptions.yaml (A-001)
+  - scripts/check-governance.py and scripts/secret-scan.sh (what the fixtures must not contain)
+searched_for_reuse:
+  - query: existing fixtures or provider samples in backend/tests
+    result: none; tests/fixtures/events is new. The mappers reuse sanitize_text, derive_event_id and validate_event, and the tests reuse tests/unit/events/factory.py
+changes:
+  - {path: backend/tests/fixtures/events/README.md, kind: added, note: SYNTHETIC label, inventory, regeneration command}
+  - {path: backend/tests/fixtures/events/synthetic-provider-a-transcript.jsonl, kind: added, note: "shape A, 7 lines, each with _synthetic: true"}
+  - {path: backend/tests/fixtures/events/synthetic-provider-b-webhooks.json, kind: added, note: "shape B, 11 deliveries incl. one re-delivery, _synthetic: true"}
+  - {path: backend/tests/fixtures/events/synthetic-provider-c-agent.json, kind: added, note: "shape C, 21 steps, _synthetic: true"}
+  - {path: backend/tests/fixtures/events/mappers.py, kind: added, note: test-only mappers, entity_id (§4), command_text (§10.4), projection}
+  - {path: backend/tests/fixtures/events/reference.py, kind: added, note: deterministic trace generator (python -m tests.fixtures.events.reference)}
+  - {path: backend/tests/fixtures/events/reference-trace-v1.jsonl, kind: added, note: 58 canonical events}
+  - {path: backend/tests/fixtures/events/reference-trace-v1.sha256, kind: added, note: pinned digest}
+  - {path: backend/tests/fixtures/events/__init__.py, kind: added, note: package marker}
+  - {path: backend/tests/unit/events/test_provider_shapes.py, kind: added, note: AC1, AC4}
+  - {path: backend/tests/unit/events/test_reference_trace.py, kind: added, note: AC2}
+  - {path: backend/tests/unit/events/test_golden.py, kind: added, note: golden literals}
+  - {path: backend/tests/unit/events/test_properties.py, kind: added, note: seeded properties}
+  - {path: backend/tests/unit/events/test_adversarial.py, kind: added, note: adversarial suite}
+contracts:
+  consumed: []
+  changed: []
+acceptance_criteria:
+  - {id: AC1, met: true, evidence: "test_every_fixture_is_labelled_synthetic, test_projection_is_equal_across_shapes, test_ids_time_and_provenance_differ, test_shape_a_converts_usage_paths_and_commands, test_shape_b_redelivery_and_sanitising"}
+  - {id: AC2, met: true, evidence: "test_trace_is_byte_stable_and_pinned, test_every_line_reparses_to_the_same_bytes, test_canonical_order_reproduces_the_file, test_scenario_coverage, test_references_resolve_within_the_trace"}
+  - {id: AC3, met: true, evidence: "test_properties.py (6 properties, Random(seed), at most 200 cases each); test_adversarial.py (every RejectCode through parse_event, malicious ids x 5 fields, 9 secrets x 12 carriers, 21 usage attacks, out-of-order and duplicate delivery, bombs, 64 KiB edges); test_golden.py"}
+  - {id: AC4, met: true, evidence: "unmappable fields listed in this summary; test_same_native_id_in_two_sessions_gives_two_event_ids (provider shapes and properties)"}
+checks:
+  - level: L1
+    command: cd backend && .venv/bin/ruff check . && .venv/bin/ruff format --check . && .venv/bin/mypy && .venv/bin/lint-imports
+    ran: true
+    result: pass
+    evidence: "All checks passed; 69 files already formatted; mypy no issues in 29 source files; Contracts: 2 kept, 0 broken"
+  - level: L2
+    command: cd backend && .venv/bin/pytest tests/unit -q && .venv/bin/bandit -q -r src
+    ran: true
+    result: pass
+    evidence: "1208 passed; bandit exit 0"
+  - level: L2
+    command: cd backend && .venv/bin/pytest --cov=observatory.events --cov-branch tests/unit/events
+    ran: true
+    result: pass
+    evidence: "626 passed; observatory.events 99% (1282 statements, 328 branches)"
+  - level: L1
+    command: python -I scripts/check-governance.py && python -I scripts/check-artifacts.py && bash scripts/secret-scan.sh
+    ran: true
+    result: pass
+    evidence: "PASS / PASS / gitleaks 8.21.2 history scan: no leaks found"
+risks_and_open_questions:
+  - "Reading taken: §4 qualifies entity ids by provider, so the projection is compared with the '<provider>:' prefix removed. The shapes share native entity names (agents, tasks, call handles) by construction."
+  - "tests/fixtures has no __init__.py, because it is outside the claim. tests.fixtures.events imports as part of an implicit namespace package. Adding tests/fixtures/__init__.py later is harmless."
+  - "The reference trace is pinned twice: in the .sha256 file and as PINNED in test_reference_trace.py. Regenerating it requires updating both, which is deliberate."
+  - "A gitleaks working-tree scan (--working-tree) reports synthetic values in untracked .pytest_cache and __pycache__ files (parametrize ids, constant-folded pyc). These files are gitignored, and the behaviour predates this task (test_telemetry)."
+new_assumptions: []
+new_debt: []
+specialist_review_needed: [security]
+rollback: Revert the squash commit; only test files and fixtures are affected.
+next_steps: Phase 2 integration and the adversarial implementation review.

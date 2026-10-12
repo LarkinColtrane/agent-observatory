@@ -1,0 +1,85 @@
+task_id: AO-P2-003
+from: w-p-protocol
+to: coordinator
+status: complete
+commit: 79a80dd
+branch: p2/003-protocol-core
+summary: >
+  observatory.events implements ADR-0008 sections 2-7 and 10-17 with
+  clarifications C0-C8 (5894c26) and the reviewers' C3/C4 sign-off notes.
+  Constructing an Event in any way runs checks 9-15. Each instance carries a
+  private stamp: the rules version it was validated under, bound by HMAC to its
+  canonical bytes, so the pure functions re-validate it under that version.
+  Forged, mutated, re-stamped and subclassed instances fail closed. The payload
+  registry dispatches on (spec_version, event_type). session.started,
+  file.changed and usage.recorded are minimal placeholders that AO-P2-004
+  replaces.
+inspected:
+  - docs/adr/0008-universal-event-protocol.md (including clarifications C0-C8)
+  - docs/phases/P2-tasks/AO-P2-003.task.yaml
+  - docs/adr/0007-typed-usage-telemetry-in-logs.md
+  - docs/reviews/phase-2-contract-review.md
+  - backend/src/observatory/core/logging.py
+  - backend/src/observatory/core/telemetry.py
+  - backend/tests/unit/test_telemetry.py
+  - scripts/check-governance.py (secret backstop patterns)
+searched_for_reuse:
+  - query: ADR-0005 key rules and key/value scrub in observatory.core
+    result: reused is_secret_key, _normalize_key, mask_key_values and REDACTED from core.logging (imported, not copied); UsageMetrics and Money from core.telemetry
+  - query: credential patterns and CLI rules
+    result: core.logging masks URLs more broadly than the §10.3 credential detector, so the detector set is defined in observatory.events/text.py as ADR-0008 requires
+changes:
+  - {path: backend/src/observatory/events/__init__.py, kind: added, note: §17 public API}
+  - {path: backend/src/observatory/events/ids.py, kind: added, note: scalar types, UUID rules, timestamps, derive_event_id}
+  - {path: backend/src/observatory/events/text.py, kind: added, note: forbidden ranges, RelPath, both detector tiers, RuleSet, SECRET_RULES, sanitize_text}
+  - {path: backend/src/observatory/events/tree.py, kind: added, note: canonical text, plain-tree inspection, schema shapes, pointers}
+  - {path: backend/src/observatory/events/codes.py, kind: added, note: RejectCode, Disposition, WarningCode, EventRejection}
+  - {path: backend/src/observatory/events/payloads.py, kind: added, note: EventPayload, ExtensionPayload, extension rules, registry with placeholders}
+  - {path: backend/src/observatory/events/envelope.py, kind: added, note: envelope models, checks 9-15, rules stamp, revalidate}
+  - {path: backend/src/observatory/events/codec.py, kind: added, note: depth pre-scan, hooked JSON parse, canonical_json, fingerprints}
+  - {path: backend/src/observatory/events/validation.py, kind: added, note: parse_event, validate_event, Accepted, Rejected, RecordedEvent, load_recorded}
+  - {path: backend/src/observatory/events/ordering.py, kind: added, note: stream_key, canonical_order, classify_duplicate, DuplicateKind}
+  - {path: backend/tests/unit/events, kind: added, note: 247 tests (factory plus 7 test modules)}
+contracts:
+  consumed: []
+  changed: []
+acceptance_criteria:
+  - {id: AC1, met: true, evidence: "test_validation.py: test_pre_scan_codes, test_event_codes, test_parse_order, test_event_check_order, test_canonical_size_check_is_quarantine, test_unexpected_exception_is_internal_error"}
+  - {id: AC2, met: true, evidence: "test_canonical.py: golden bytes, test_round_trip_is_a_fixed_point (150 seeded events), content_fingerprint by hand, test_derive_event_id_matches_the_contract against an independent derivation"}
+  - {id: AC3, met: true, evidence: "test_ordering.py: permutation invariance (25 seeded scenarios x 8 shuffles), stream order beats time, tie-breaks, ValueError preconditions, duplicate kinds"}
+  - {id: AC4, met: true, evidence: "test_text.py: scalar patterns, UUID and timestamp cases, every forbidden range, RelPath list incl. NFKC folds, one positive and negative case per detector, URL password with '/', single-line PEM with no 4-byte body window surviving, mandatory negative corpus, TD-026 password:x Id, 16 worst-case 64 KiB inputs plus a 64 KiB U+FDFA event each under 1 s, unidata 15.0.0 (C0)"}
+  - {id: AC5, met: true, evidence: "test_secret_rejections_echo_nothing, test_unknown_keys_are_never_echoed, test_scan_runs_before_every_quarantine_check, test_construction_errors_echo_nothing; drop records carry no raw_sha256 or metadata"}
+  - {id: AC6, met: true, evidence: "test_exact_types.py: constructor runs checks 9-15 per code; 7 pure entry points refuse subclasses (TypeError) and 8 forgeries incl. model_construct, mutation, moved stamp (ValueError); mixed workspaces refused; Reviewer A forged-stamp test"}
+  - {id: AC7, met: true, evidence: "lint-imports 2 kept; test_dependencies.py asserts imports are observatory.core, pydantic or stdlib only; pyproject.toml not edited (the coordinator removes the optional marker)"}
+  - {id: AC8, met: true, evidence: "test_recorded.py: synthetic rules v2 patch; event accepted under v1 replays via load_recorded, is rejected by parse_event/validate_event/Event and by load_recorded naming v2; v1 stamp outside the recorded path fails closed; test_duplicate_kinds_in_precedence, test_same_slot_never_hides_an_id_match"}
+checks:
+  - level: L1
+    command: cd backend && .venv/bin/ruff check . && .venv/bin/ruff format --check . && .venv/bin/mypy && .venv/bin/lint-imports
+    ran: true
+    result: pass
+    evidence: "All checks passed; 55 files already formatted; mypy no issues in 26 source files; Contracts: 2 kept, 0 broken"
+  - level: L2
+    command: cd backend && .venv/bin/pytest tests/unit -q && .venv/bin/bandit -q -r src
+    ran: true
+    result: pass
+    evidence: "829 passed; bandit exit 0 (one nosec B105 on the RejectCode value secret_detected)"
+  - level: L2
+    command: cd backend && .venv/bin/pytest --cov=observatory.events --cov-branch tests/unit/events
+    ran: true
+    result: pass
+    evidence: "247 passed; observatory.events 98% (1034 statements, 294 branches)"
+  - level: L1
+    command: python -I scripts/check-governance.py && python -I scripts/check-artifacts.py (governance venv)
+    ran: true
+    result: pass
+    evidence: "PASS / PASS; no possible-secret line for the working tree, index or history"
+risks_and_open_questions:
+  - The rules stamp is an in-process HMAC with a per-process random key. It stops forgery through the public API, but not code that reads module internals. Python has no stronger privacy.
+  - Construction rejects explicit None everywhere (rule 4), so Event.model_validate(event.model_dump()) fails. Use model_dump(exclude_none=True) or canonical_json.
+  - Check 15 cannot be reached with v1-sized valid events (about 13 KiB at most), so it is tested by lowering the limit.
+  - "AO-P2-004 hooks: add models to payloads.PAYLOADS and override EventPayload.reference_errors(event). Scope-requirement rules (§8 'Required scope') need a schema hook; none exists yet."
+new_assumptions: []
+new_debt: []
+specialist_review_needed: [security]
+rollback: Revert the squash commit; nothing depends on observatory.events yet.
+next_steps: AO-P2-004 replaces the placeholder payloads with the 16 §8/§9 models.

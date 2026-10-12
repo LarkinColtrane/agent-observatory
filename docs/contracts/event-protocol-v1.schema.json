@@ -1,0 +1,1240 @@
+{
+  "$defs": {
+    "Adapter": {
+      "additionalProperties": false,
+      "description": "The emitting adapter or SDK.",
+      "properties": {
+        "name": {
+          "pattern": "^[a-z][a-z0-9-]{1,31}$",
+          "title": "Name",
+          "type": "string"
+        },
+        "version": {
+          "pattern": "^(0|[1-9][0-9]{0,3})\\.(0|[1-9][0-9]{0,3})\\.(0|[1-9][0-9]{0,5})$",
+          "title": "Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "version"
+      ],
+      "title": "Adapter",
+      "type": "object"
+    },
+    "AgentSpawned": {
+      "additionalProperties": false,
+      "description": "``agent.spawned``: the scope agent is the spawner, ``parent_agent_id`` the hierarchy owner.",
+      "properties": {
+        "agent_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "Agent Id",
+          "type": "string"
+        },
+        "display_name": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Display Name",
+          "type": "string"
+        },
+        "model": {
+          "pattern": "^[\\x21-\\x7e]{1,128}$",
+          "title": "Model",
+          "type": "string"
+        },
+        "parent_agent_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "Parent Agent Id",
+          "type": "string"
+        },
+        "role": {
+          "maxLength": 64,
+          "minLength": 1,
+          "title": "Role",
+          "type": "string"
+        }
+      },
+      "required": [
+        "agent_id"
+      ],
+      "title": "AgentSpawned",
+      "type": "object"
+    },
+    "AgentTerminated": {
+      "additionalProperties": false,
+      "description": "``agent.terminated``.",
+      "properties": {
+        "agent_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "Agent Id",
+          "type": "string"
+        },
+        "reason": {
+          "enum": [
+            "completed",
+            "failed",
+            "cancelled",
+            "killed",
+            "timeout",
+            "unknown"
+          ],
+          "title": "Reason",
+          "type": "string"
+        }
+      },
+      "required": [
+        "agent_id",
+        "reason"
+      ],
+      "title": "AgentTerminated",
+      "type": "object"
+    },
+    "Causality": {
+      "additionalProperties": false,
+      "description": "Correlation and direct cause; present only when it holds something.",
+      "properties": {
+        "causation_id": {
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-([478])[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "title": "Causation Id",
+          "type": "string"
+        },
+        "correlation_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "Correlation Id",
+          "type": "string"
+        }
+      },
+      "title": "Causality",
+      "type": "object"
+    },
+    "ErrorReported": {
+      "additionalProperties": false,
+      "description": "``error.reported``: an error not expressed by a ``tool.call_finished`` outcome.",
+      "properties": {
+        "call_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "Call Id",
+          "type": "string"
+        },
+        "error_code": {
+          "pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+          "title": "Error Code",
+          "type": "string"
+        },
+        "message": {
+          "maxLength": 512,
+          "minLength": 1,
+          "title": "Message",
+          "type": "string"
+        },
+        "severity": {
+          "enum": [
+            "warning",
+            "error",
+            "fatal"
+          ],
+          "title": "Severity",
+          "type": "string"
+        }
+      },
+      "required": [
+        "error_code",
+        "severity"
+      ],
+      "title": "ErrorReported",
+      "type": "object"
+    },
+    "Event": {
+      "additionalProperties": false,
+      "description": "One emitted event (\u00a72). Every instance has passed checks 9-15.",
+      "properties": {
+        "causality": {
+          "$ref": "#/$defs/Causality"
+        },
+        "event_id": {
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-([478])[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "title": "Event Id",
+          "type": "string"
+        },
+        "event_type": {
+          "title": "Event Type",
+          "type": "string"
+        },
+        "extensions": {
+          "additionalProperties": true,
+          "title": "Extensions",
+          "type": "object"
+        },
+        "payload": {
+          "description": "selected by event_type",
+          "type": "object"
+        },
+        "scope": {
+          "$ref": "#/$defs/Scope"
+        },
+        "source": {
+          "$ref": "#/$defs/Source"
+        },
+        "spec_version": {
+          "const": "1.0"
+        },
+        "time": {
+          "$ref": "#/$defs/EventTime"
+        }
+      },
+      "required": [
+        "spec_version",
+        "event_id",
+        "event_type",
+        "scope",
+        "time",
+        "source",
+        "payload"
+      ],
+      "title": "Event",
+      "type": "object"
+    },
+    "EventTime": {
+      "additionalProperties": false,
+      "description": "Source and emitter times (\u00a76); timestamps are kept in canonical form.",
+      "properties": {
+        "observed_at": {
+          "pattern": "^([0-9]{4})-([0-9]{2})-([0-9]{2})T([0-9]{2}):([0-9]{2}):([0-9]{2})(?:\\.([0-9]{1,6}))?Z$",
+          "title": "Observed At",
+          "type": "string"
+        },
+        "occurred_at": {
+          "pattern": "^([0-9]{4})-([0-9]{2})-([0-9]{2})T([0-9]{2}):([0-9]{2}):([0-9]{2})(?:\\.([0-9]{1,6}))?Z$",
+          "title": "Occurred At",
+          "type": "string"
+        }
+      },
+      "required": [
+        "observed_at"
+      ],
+      "title": "EventTime",
+      "type": "object"
+    },
+    "ExtensionPayload": {
+      "additionalProperties": true,
+      "description": "Payload of an ``x-<vendor>.<name>`` event: extension values, at most 8 KiB canonical (\u00a711).",
+      "properties": {},
+      "title": "ExtensionPayload",
+      "type": "object"
+    },
+    "FileChanged": {
+      "additionalProperties": false,
+      "description": "``file.changed``: the effect, whatever tool or person caused it.",
+      "properties": {
+        "call_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "Call Id",
+          "type": "string"
+        },
+        "change": {
+          "enum": [
+            "created",
+            "modified",
+            "deleted",
+            "renamed"
+          ],
+          "title": "Change",
+          "type": "string"
+        },
+        "lines_added": {
+          "maximum": 1000000000,
+          "minimum": 0,
+          "title": "Lines Added",
+          "type": "integer"
+        },
+        "lines_removed": {
+          "maximum": 1000000000,
+          "minimum": 0,
+          "title": "Lines Removed",
+          "type": "integer"
+        },
+        "path": {
+          "maxLength": 1024,
+          "minLength": 1,
+          "pattern": "^[^/]",
+          "title": "Path",
+          "type": "string"
+        },
+        "previous_path": {
+          "maxLength": 1024,
+          "minLength": 1,
+          "pattern": "^[^/]",
+          "title": "Previous Path",
+          "type": "string"
+        }
+      },
+      "required": [
+        "path",
+        "change"
+      ],
+      "title": "FileChanged",
+      "type": "object"
+    },
+    "MessageSent": {
+      "additionalProperties": false,
+      "description": "``message.sent``: metadata only, never content; the sender is the scope agent.",
+      "properties": {
+        "channel_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "Channel Id",
+          "type": "string"
+        },
+        "in_reply_to_message_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "In Reply To Message Id",
+          "type": "string"
+        },
+        "intent": {
+          "enum": [
+            "request",
+            "response",
+            "notification",
+            "handoff",
+            "broadcast"
+          ],
+          "title": "Intent",
+          "type": "string"
+        },
+        "message_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "Message Id",
+          "type": "string"
+        },
+        "size_bytes": {
+          "maximum": 1000000000,
+          "minimum": 0,
+          "title": "Size Bytes",
+          "type": "integer"
+        },
+        "to_agent_ids": {
+          "items": {
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+            "type": "string"
+          },
+          "maxItems": 64,
+          "minItems": 1,
+          "title": "To Agent Ids",
+          "type": "array",
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "message_id",
+        "intent"
+      ],
+      "title": "MessageSent",
+      "type": "object"
+    },
+    "Money": {
+      "additionalProperties": false,
+      "description": "An amount in one currency. Binary floats are never accepted for money.",
+      "properties": {
+        "amount": {
+          "pattern": "^(?:0|[1-9][0-9]{0,8})(?:\\.[0-9]{0,11}[1-9])?$",
+          "title": "Amount",
+          "type": "string"
+        },
+        "currency": {
+          "pattern": "^[A-Z]{3}$",
+          "title": "Currency",
+          "type": "string"
+        }
+      },
+      "required": [
+        "amount",
+        "currency"
+      ],
+      "title": "Money",
+      "type": "object"
+    },
+    "ReviewVerdictRecorded": {
+      "additionalProperties": false,
+      "description": "``review.verdict_recorded``: the reviewer is the scope agent.",
+      "properties": {
+        "blocking_findings": {
+          "maximum": 1000000000,
+          "minimum": 0,
+          "title": "Blocking Findings",
+          "type": "integer"
+        },
+        "findings": {
+          "maximum": 1000000000,
+          "minimum": 0,
+          "title": "Findings",
+          "type": "integer"
+        },
+        "review_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "Review Id",
+          "type": "string"
+        },
+        "subject_task_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "Subject Task Id",
+          "type": "string"
+        },
+        "verdict": {
+          "enum": [
+            "approve",
+            "approve_with_notes",
+            "request_changes",
+            "reject",
+            "comment"
+          ],
+          "title": "Verdict",
+          "type": "string"
+        }
+      },
+      "required": [
+        "review_id",
+        "verdict"
+      ],
+      "title": "ReviewVerdictRecorded",
+      "type": "object"
+    },
+    "Scope": {
+      "additionalProperties": false,
+      "description": "Who acted and where (\u00a72).",
+      "properties": {
+        "agent_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "Agent Id",
+          "type": "string"
+        },
+        "session_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "Session Id",
+          "type": "string"
+        },
+        "task_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "Task Id",
+          "type": "string"
+        },
+        "workspace_id": {
+          "pattern": "^[a-z0-9][a-z0-9-]{0,62}$",
+          "title": "Workspace Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "workspace_id"
+      ],
+      "title": "Scope",
+      "type": "object"
+    },
+    "SessionEnded": {
+      "additionalProperties": false,
+      "description": "``session.ended``.",
+      "properties": {
+        "outcome": {
+          "enum": [
+            "completed",
+            "failed",
+            "cancelled",
+            "unknown"
+          ],
+          "title": "Outcome",
+          "type": "string"
+        },
+        "session_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "Session Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "session_id",
+        "outcome"
+      ],
+      "title": "SessionEnded",
+      "type": "object"
+    },
+    "SessionStarted": {
+      "additionalProperties": false,
+      "description": "``session.started``.",
+      "properties": {
+        "initiator": {
+          "enum": [
+            "human",
+            "agent",
+            "schedule",
+            "system"
+          ],
+          "title": "Initiator",
+          "type": "string"
+        },
+        "session_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "Session Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "session_id"
+      ],
+      "title": "SessionStarted",
+      "type": "object"
+    },
+    "Source": {
+      "additionalProperties": false,
+      "description": "Provenance and stream position (\u00a7\u00a72, 7).",
+      "properties": {
+        "adapter": {
+          "$ref": "#/$defs/Adapter"
+        },
+        "provider": {
+          "pattern": "^[a-z][a-z0-9-]{1,31}$",
+          "title": "Provider",
+          "type": "string"
+        },
+        "provider_event_id": {
+          "pattern": "^[\\x21-\\x7e]{1,256}$",
+          "title": "Provider Event Id",
+          "type": "string"
+        },
+        "seq": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Seq",
+          "type": "integer"
+        },
+        "stream_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "Stream Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "provider",
+        "adapter"
+      ],
+      "title": "Source",
+      "type": "object"
+    },
+    "TaskAssigned": {
+      "additionalProperties": false,
+      "description": "``task.assigned``: a handoff has a previous assignee; the assigner is the scope agent.",
+      "properties": {
+        "assignee_agent_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "Assignee Agent Id",
+          "type": "string"
+        },
+        "previous_assignee_agent_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "Previous Assignee Agent Id",
+          "type": "string"
+        },
+        "task_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "Task Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "task_id",
+        "assignee_agent_id"
+      ],
+      "title": "TaskAssigned",
+      "type": "object"
+    },
+    "TaskCreated": {
+      "additionalProperties": false,
+      "description": "``task.created``: subtask = parent, DAG edges = ``depends_on``.",
+      "properties": {
+        "depends_on": {
+          "items": {
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+            "type": "string"
+          },
+          "maxItems": 64,
+          "minItems": 1,
+          "title": "Depends On",
+          "type": "array",
+          "uniqueItems": true
+        },
+        "parent_task_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "Parent Task Id",
+          "type": "string"
+        },
+        "task_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "Task Id",
+          "type": "string"
+        },
+        "title": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Title",
+          "type": "string"
+        }
+      },
+      "required": [
+        "task_id"
+      ],
+      "title": "TaskCreated",
+      "type": "object"
+    },
+    "TaskDependencyAdded": {
+      "additionalProperties": false,
+      "description": "``task.dependency_added``: a DAG edge added after creation.",
+      "properties": {
+        "depends_on_task_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "Depends On Task Id",
+          "type": "string"
+        },
+        "task_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "Task Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "task_id",
+        "depends_on_task_id"
+      ],
+      "title": "TaskDependencyAdded",
+      "type": "object"
+    },
+    "TaskStatusChanged": {
+      "additionalProperties": false,
+      "description": "``task.status_changed``: blockers only when blocked, evidence only when completed or failed.",
+      "properties": {
+        "blocked_by_task_ids": {
+          "items": {
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+            "type": "string"
+          },
+          "maxItems": 64,
+          "minItems": 1,
+          "title": "Blocked By Task Ids",
+          "type": "array",
+          "uniqueItems": true
+        },
+        "evidence_event_ids": {
+          "items": {
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-([478])[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+            "type": "string"
+          },
+          "maxItems": 32,
+          "minItems": 1,
+          "title": "Evidence Event Ids",
+          "type": "array",
+          "uniqueItems": true
+        },
+        "reason_code": {
+          "pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+          "title": "Reason Code",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "pending",
+            "in_progress",
+            "blocked",
+            "completed",
+            "failed",
+            "cancelled"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "task_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "Task Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "task_id",
+        "status"
+      ],
+      "title": "TaskStatusChanged",
+      "type": "object"
+    },
+    "TestRunCompleted": {
+      "additionalProperties": false,
+      "description": "``test.run_completed``: results only, never test output.",
+      "properties": {
+        "call_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "Call Id",
+          "type": "string"
+        },
+        "duration_ms": {
+          "maximum": 2592000000,
+          "minimum": 0,
+          "title": "Duration Ms",
+          "type": "integer"
+        },
+        "errored": {
+          "maximum": 1000000000,
+          "minimum": 0,
+          "title": "Errored",
+          "type": "integer"
+        },
+        "failed": {
+          "maximum": 1000000000,
+          "minimum": 0,
+          "title": "Failed",
+          "type": "integer"
+        },
+        "framework": {
+          "pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+          "title": "Framework",
+          "type": "string"
+        },
+        "outcome": {
+          "enum": [
+            "passed",
+            "failed",
+            "errored",
+            "cancelled"
+          ],
+          "title": "Outcome",
+          "type": "string"
+        },
+        "passed": {
+          "maximum": 1000000000,
+          "minimum": 0,
+          "title": "Passed",
+          "type": "integer"
+        },
+        "run_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "Run Id",
+          "type": "string"
+        },
+        "skipped": {
+          "maximum": 1000000000,
+          "minimum": 0,
+          "title": "Skipped",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "run_id",
+        "outcome"
+      ],
+      "title": "TestRunCompleted",
+      "type": "object"
+    },
+    "ToolCallFinished": {
+      "additionalProperties": false,
+      "description": "``tool.call_finished``.",
+      "properties": {
+        "call_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "Call Id",
+          "type": "string"
+        },
+        "duration_ms": {
+          "maximum": 2592000000,
+          "minimum": 0,
+          "title": "Duration Ms",
+          "type": "integer"
+        },
+        "error_code": {
+          "pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+          "title": "Error Code",
+          "type": "string"
+        },
+        "exit_code": {
+          "maximum": 2147483647,
+          "minimum": -2147483648,
+          "title": "Exit Code",
+          "type": "integer"
+        },
+        "outcome": {
+          "enum": [
+            "succeeded",
+            "failed",
+            "cancelled",
+            "timed_out"
+          ],
+          "title": "Outcome",
+          "type": "string"
+        }
+      },
+      "required": [
+        "call_id",
+        "outcome"
+      ],
+      "title": "ToolCallFinished",
+      "type": "object"
+    },
+    "ToolCallStarted": {
+      "additionalProperties": false,
+      "description": "``tool.call_started``: a retry is a new call with ``attempt``.",
+      "properties": {
+        "attempt": {
+          "maximum": 1000,
+          "minimum": 2,
+          "title": "Attempt",
+          "type": "integer"
+        },
+        "call_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "Call Id",
+          "type": "string"
+        },
+        "command": {
+          "maxLength": 1024,
+          "minLength": 1,
+          "title": "Command",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "command",
+            "search",
+            "file_read",
+            "file_write",
+            "web",
+            "agent",
+            "other"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "query": {
+          "maxLength": 512,
+          "minLength": 1,
+          "title": "Query",
+          "type": "string"
+        },
+        "retry_of_call_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "Retry Of Call Id",
+          "type": "string"
+        },
+        "target_path": {
+          "maxLength": 1024,
+          "minLength": 1,
+          "pattern": "^[^/]",
+          "title": "Target Path",
+          "type": "string"
+        },
+        "tool_name": {
+          "pattern": "^[\\x21-\\x7e]{1,128}$",
+          "title": "Tool Name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "call_id",
+        "tool_name",
+        "kind"
+      ],
+      "title": "ToolCallStarted",
+      "type": "object"
+    },
+    "UsageMetrics": {
+      "additionalProperties": false,
+      "description": "Model usage as reported or estimated; an absent field means unknown, never zero.\n\nCanonical meanings (ADR-0007 \u00a7Semantics); producers convert provider counts:\n``input_tokens`` counts all input, cache reads and cache writes included;\n``cached_input_tokens`` is the part of it read from cache; ``reasoning_tokens``\nis the part of ``output_tokens`` spent on reasoning; ``total_tokens`` is only\never the provider's own total, never computed. Whether the values are a delta\nor a running total is stated by the record that carries them.",
+      "properties": {
+        "cached_input_tokens": {
+          "maximum": 1000000000000,
+          "minimum": 0,
+          "title": "Cached Input Tokens",
+          "type": "integer"
+        },
+        "estimated_cost": {
+          "$ref": "#/$defs/Money"
+        },
+        "input_tokens": {
+          "maximum": 1000000000000,
+          "minimum": 0,
+          "title": "Input Tokens",
+          "type": "integer"
+        },
+        "output_tokens": {
+          "maximum": 1000000000000,
+          "minimum": 0,
+          "title": "Output Tokens",
+          "type": "integer"
+        },
+        "reasoning_tokens": {
+          "maximum": 1000000000000,
+          "minimum": 0,
+          "title": "Reasoning Tokens",
+          "type": "integer"
+        },
+        "reported_cost": {
+          "$ref": "#/$defs/Money"
+        },
+        "total_tokens": {
+          "maximum": 1000000000000,
+          "minimum": 0,
+          "title": "Total Tokens",
+          "type": "integer"
+        }
+      },
+      "title": "UsageMetrics",
+      "type": "object"
+    },
+    "UsageRecorded": {
+      "additionalProperties": false,
+      "description": "``usage.recorded``: ADR-0007 usage as a delta or a running total of one unit instance.",
+      "properties": {
+        "accounting": {
+          "enum": [
+            "delta",
+            "cumulative"
+          ],
+          "title": "Accounting",
+          "type": "string"
+        },
+        "call_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "Call Id",
+          "type": "string"
+        },
+        "model": {
+          "pattern": "^[\\x21-\\x7e]{1,128}$",
+          "title": "Model",
+          "type": "string"
+        },
+        "pricing_ref": {
+          "pattern": "^[\\x21-\\x7e]{1,256}$",
+          "title": "Pricing Ref",
+          "type": "string"
+        },
+        "unit": {
+          "enum": [
+            "model_call",
+            "turn",
+            "agent",
+            "session"
+          ],
+          "title": "Unit",
+          "type": "string"
+        },
+        "unit_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "Unit Id",
+          "type": "string"
+        },
+        "usage": {
+          "$ref": "#/$defs/UsageMetrics"
+        }
+      },
+      "required": [
+        "usage",
+        "accounting",
+        "unit"
+      ],
+      "title": "UsageRecorded",
+      "type": "object"
+    }
+  },
+  "$id": "https://agent-observatory.invalid/contracts/event-protocol-v1.schema.json",
+  "$ref": "#/$defs/Event",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "event_type": {
+            "const": "agent.spawned"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "payload": {
+            "$ref": "#/$defs/AgentSpawned"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "event_type": {
+            "const": "agent.terminated"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "payload": {
+            "$ref": "#/$defs/AgentTerminated"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "event_type": {
+            "const": "error.reported"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "payload": {
+            "$ref": "#/$defs/ErrorReported"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "event_type": {
+            "const": "file.changed"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "payload": {
+            "$ref": "#/$defs/FileChanged"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "event_type": {
+            "const": "message.sent"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "payload": {
+            "$ref": "#/$defs/MessageSent"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "event_type": {
+            "const": "review.verdict_recorded"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "payload": {
+            "$ref": "#/$defs/ReviewVerdictRecorded"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "event_type": {
+            "const": "session.ended"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "payload": {
+            "$ref": "#/$defs/SessionEnded"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "event_type": {
+            "const": "session.started"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "payload": {
+            "$ref": "#/$defs/SessionStarted"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "event_type": {
+            "const": "task.assigned"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "payload": {
+            "$ref": "#/$defs/TaskAssigned"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "event_type": {
+            "const": "task.created"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "payload": {
+            "$ref": "#/$defs/TaskCreated"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "event_type": {
+            "const": "task.dependency_added"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "payload": {
+            "$ref": "#/$defs/TaskDependencyAdded"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "event_type": {
+            "const": "task.status_changed"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "payload": {
+            "$ref": "#/$defs/TaskStatusChanged"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "event_type": {
+            "const": "test.run_completed"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "payload": {
+            "$ref": "#/$defs/TestRunCompleted"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "event_type": {
+            "const": "tool.call_finished"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "payload": {
+            "$ref": "#/$defs/ToolCallFinished"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "event_type": {
+            "const": "tool.call_started"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "payload": {
+            "$ref": "#/$defs/ToolCallStarted"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "event_type": {
+            "const": "usage.recorded"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "payload": {
+            "$ref": "#/$defs/UsageRecorded"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "event_type": {
+            "pattern": "^(?P<vendor>x-[a-z][a-z0-9-]{1,30})\\.[a-z][a-z0-9_]{0,63}$"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "payload": {
+            "$ref": "#/$defs/ExtensionPayload"
+          }
+        }
+      }
+    }
+  ],
+  "description": "Generated from observatory.events; the Python validator is normative (ADR-0008 \u00a717).",
+  "properties": {
+    "event_type": {
+      "enum": [
+        "agent.spawned",
+        "agent.terminated",
+        "error.reported",
+        "file.changed",
+        "message.sent",
+        "review.verdict_recorded",
+        "session.ended",
+        "session.started",
+        "task.assigned",
+        "task.created",
+        "task.dependency_added",
+        "task.status_changed",
+        "test.run_completed",
+        "tool.call_finished",
+        "tool.call_started",
+        "usage.recorded"
+      ]
+    }
+  },
+  "title": "Agent Observatory event protocol 1.0 (informative)"
+}
