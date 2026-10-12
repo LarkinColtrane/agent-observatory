@@ -118,3 +118,28 @@ assumptions:
     review_phase: P5
     validation_plan: Benchmark ingest and fan-out in Phase 5 before freezing the realtime design.
     recorded: 2026-10-10
+  - id: A-010
+    statement: >
+      A minimal security-patch release published at least 7 days before it is
+      locked carries less risk than keeping the known high advisory it fixes
+      (ADR-0006 exception to the 2-week dependency cutoff).
+    confidence: medium
+    status: open
+    owner: reviewer-a
+    affects: [C11]
+    review_phase: P1
+    validation_plan: Reviewer A and Reviewer B rule on ADR-0006 at the AO-P1-006 review; re-check at each phase gate that every recorded exception has lapsed or is still the minimal fix.
+    recorded: 2026-10-11
+  - id: A-011
+    statement: >
+      libpq/psycopg treat connect_timeout values below 2 s as 2 s, so the
+      database probe's effective connect bound is 2 s (equal to the readiness
+      deadline), not the 1 s named in ADR-0005 section 3; readiness stays
+      fail-closed because run_checks enforces the overall deadline.
+    confidence: high
+    status: validated
+    owner: reviewer-b
+    affects: [C11]
+    review_phase: P1
+    validation_plan: Reviewer B observed OperationalError at 2.0 s against a black-hole server; Reviewer A observed the black-hole check completing within the readiness deadline (under 2.5 s).
+    recorded: 2026-10-11

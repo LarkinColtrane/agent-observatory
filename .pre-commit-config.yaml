@@ -1,7 +1,8 @@
 # Pre-commit hooks for agent-observatory (see docs/phase-quality-gates.md).
-# Only repository-hygiene, secret-scanning and governance hooks exist at this
-# stage. Python/TypeScript hooks (ruff, mypy, eslint, tsc, prettier) are added
-# in Phase 1 together with the source trees they check (ADR-0002, TD-001).
+# Repository hygiene, secret scanning, governance, and backend Ruff (pinned to
+# the version in backend/uv.lock; config from backend/pyproject.toml). mypy,
+# import-linter, ESLint, tsc and Prettier need the locked project
+# environments, so they run in CI (governance.yml) and `make check`.
 # Revs are pinned to commit SHAs (tags are mutable, review N-04); update
 # deliberately via a reviewed change.
 minimum_pre_commit_version: "3.5.0"
@@ -30,6 +31,14 @@ repos:
     hooks:
       - id: gitleaks
 
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: a56c0b927e6465d37cae3e97d35d4d18ab2b96cd # frozen: v0.16.9 (= backend/uv.lock)
+    hooks:
+      - id: ruff
+        files: ^backend/
+      - id: ruff-format
+        files: ^backend/
+
   - repo: local
     hooks:
       - id: governance-check
@@ -39,10 +48,17 @@ repos:
         additional_dependencies: ["pyyaml==6.0.2"]
         pass_filenames: false
         always_run: true
+      - id: governance-artifacts
+        name: task/handoff artifact check
+        entry: python3 -I scripts/check-artifacts.py
+        language: python
+        additional_dependencies: ["pyyaml==6.0.2"]
+        pass_filenames: false
+        files: ^(docs/phases/P[0-9]+-tasks/|docs/governance-state\.yaml|scripts/check-artifacts\.py)
       - id: governance-checker-tests
         name: governance checker adversarial tests
         entry: python3 -I -m unittest discover -s tests/governance -t . -q
         language: python
         additional_dependencies: ["pyyaml==6.0.2"]
         pass_filenames: false
-        files: ^(scripts/check-governance\.py|tests/governance/)
+        files: ^(scripts/check-(governance|artifacts)\.py|tests/governance/|docs/phases/P[0-9]+-tasks/|\.github/workflows/)

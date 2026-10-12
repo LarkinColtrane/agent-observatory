@@ -1,0 +1,43 @@
+task_id: AO-P1-003
+from: w2-frontend
+to: coordinator
+status: complete
+commit: 89a164b
+branch: p1/006-integration
+summary: >
+  Minimal Next.js App Router frontend with strict TypeScript, ESLint (zero
+  warnings), Prettier and Vitest, security headers with a tested CSP, and a
+  hardened multi-stage Dockerfile (digest-pinned node, root-owned app files,
+  no package managers at runtime). Squashed snapshot of task branch 08be1a7.
+inspected:
+  - docs/adr/0005-phase-1-foundation-contract.md
+  - docs/adr/0006-dependency-security-patch-exception.md
+searched_for_reuse:
+  - query: existing frontend scaffolding or lint config in the repo
+    result: none; Next's App Router defaults, eslint-config-next replaced by generic plugins to drop the braces chain (ADR-0006).
+changes:
+  - {path: frontend, kind: added, note: Next.js app, configs, tests, Dockerfile, lockfile}
+contracts:
+  consumed: [docs/adr/0005-phase-1-foundation-contract.md@contract-phase1-foundation-v1.0.0]
+  changed: []
+acceptance_criteria:
+  - {id: AC1, met: true, evidence: "https://github.com/LarkinColtrane/agent-observatory/actions/runs/38148626706 (job frontend: npm ci, lint, typecheck, format, 10 tests, build, npm audit high = 0, npm audit signatures)"}
+  - {id: AC2, met: true, evidence: "https://github.com/LarkinColtrane/agent-observatory/actions/runs/38148626706 (job containers: frontend image built, healthy, uid 1001, CSP/nosniff/DENY, no X-Powered-By)"}
+checks:
+  - level: L1
+    command: cd frontend && npm ci && npm run lint && npm run typecheck && npm run format:check && npm test
+    ran: true
+    result: pass
+    evidence: "https://github.com/LarkinColtrane/agent-observatory/actions/runs/38148626706 (job frontend)"
+  - level: L2
+    command: cd frontend && npm run build && npm audit --audit-level=high && npm audit signatures
+    ran: true
+    result: pass
+    evidence: "https://github.com/LarkinColtrane/agent-observatory/actions/runs/38148626706 (job frontend)"
+risks_and_open_questions:
+  - CSP allows inline scripts and HSTS/Permissions-Policy are absent (TD-017); Next-specific lint rules are off (TD-013).
+new_assumptions: [A-010]
+new_debt: [TD-013]
+specialist_review_needed: []
+rollback: Revert the squash commit and the compose frontend service.
+next_steps: none

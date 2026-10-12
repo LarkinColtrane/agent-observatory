@@ -1,0 +1,50 @@
+task_id: AO-P1-002
+from: w1-backend-core
+to: coordinator
+status: complete
+commit: 58e5876
+branch: p1/006-integration
+summary: >
+  Mandatory log redaction (key-based, normalised, recursive; URL credentials,
+  key/value text, cookie/authorization lines and PEM blocks masked in every
+  string, linear time), ObservatoryError and generic error bodies, the FastAPI
+  app factory with /healthz, /readyz and /version, and request-ID middleware.
+  Squashed snapshot of task branch dea6e2b after three Reviewer A rounds.
+inspected:
+  - docs/adr/0005-phase-1-foundation-contract.md
+  - docs/security-baseline.md
+  - backend/src/observatory/core/config.py
+  - backend/src/observatory/core/health.py
+searched_for_reuse:
+  - query: logging redaction and request-id helpers in the repo and stack
+    result: none existed; stdlib logging with a custom formatter and filter, no new dependency.
+changes:
+  - {path: backend/src/observatory/core/logging.py, kind: added, note: configure_logging, redaction, hooks}
+  - {path: backend/src/observatory/core/errors.py, kind: added, note: ObservatoryError and error body}
+  - {path: backend/src/observatory/api, kind: added, note: app factory, endpoints, request-ID middleware}
+  - {path: backend/tests/unit, kind: modified, note: logging, API and conftest tests (213 unit tests at handoff)}
+contracts:
+  consumed: [docs/adr/0005-phase-1-foundation-contract.md@contract-phase1-foundation-v1.0.0]
+  changed: []
+acceptance_criteria:
+  - {id: AC1, met: true, evidence: "test_logging (key families from the literal ADR list, nested values, URL credentials in msg/args/tracebacks); Reviewer A probes and 58/59 mutants killed (survivor proven equivalent)"}
+  - {id: AC2, met: true, evidence: "test_api request-id cases: 8/64 accepted, 7/65, trailing newline, NUL and unicode rejected"}
+  - {id: AC3, met: true, evidence: "test_api readiness (503 without checks unless env=test, body name+ok only) and error bodies (422 validation_error, 500 internal_error, no exception text)"}
+checks:
+  - level: L1
+    command: cd backend && .venv/bin/ruff check . && .venv/bin/ruff format --check . && .venv/bin/mypy && .venv/bin/lint-imports
+    ran: true
+    result: pass
+    evidence: "https://github.com/LarkinColtrane/agent-observatory/actions/runs/38148626706 (job backend)"
+  - level: L2
+    command: cd backend && AO_REQUIRE_INTEGRATION=1 .venv/bin/pytest -q --cov
+    ran: true
+    result: pass
+    evidence: "https://github.com/LarkinColtrane/agent-observatory/actions/runs/38148626706 (job backend-integration: 306 passed, coverage 99.09%)"
+risks_and_open_questions:
+  - Text scrubbing is best-effort for free text; structured redaction is complete. Follow-ups in TD-012; documented limits in docs/reviews/phase-1-task-reviews.md.
+new_assumptions: []
+new_debt: [TD-012]
+specialist_review_needed: [security]
+rollback: Revert the squash commit; main.py and the api depend on it, so revert AO-P1-006 first.
+next_steps: none

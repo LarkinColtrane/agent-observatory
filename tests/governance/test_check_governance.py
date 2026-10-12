@@ -283,7 +283,8 @@ class TestGovernanceState(CheckerCase):
         end = text.find("\n  - id: ", start + 1)
         end = len(text) if end == -1 else end
         block = text[start:end]
-        self.assertIn("    status: open\n", block, f"fixture drift: {debt_id} not open")
+        # Force the item open in the fixture: the live register repays debt over time.
+        block = re.sub(r"(?m)^    status: \w+$", "    status: open", block, count=1)
         reg.write_text(text[:start] + re.sub(r"(?m)^    blocks: \[.*\]$", "    blocks: [P1]", block, count=1) + text[end:])
         self.set_phase("P1", blocked_by=[debt_id] if recorded_in_state else [])
 

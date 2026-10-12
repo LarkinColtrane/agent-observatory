@@ -112,12 +112,14 @@ debt:
       documented but only checked for gate reports. Handoffs are YAML in
       prose; validation is manual by the receiver.
     severity: low
-    status: open
+    status: repaid
     owner: coordinator
     component: C12
     blocks: []
     repayment_trigger: When the task board/handoff storage is chosen in Phase 1.
     recorded: 2026-10-10
+    history:
+      - 2026-10-11: repaid — scripts/check-artifacts.py validates task contracts, handoffs and claims under docs/phases/P*-tasks/ (AO-P1-005, PR #5, be39447); run in CI governance-core and pre-commit (AO-P1-006).
 
   - id: TD-007
     title: Reviewer verdict lines are not authenticated
@@ -228,3 +230,151 @@ debt:
     blocks: []
     repayment_trigger: Tag ruleset active with empty bypass, restricting updates and deletions of phase-* and contract-*.
     recorded: 2026-10-10
+  - id: TD-017
+    title: Frontend CSP allows inline scripts; no HSTS or Permissions-Policy
+    description: >
+      The Phase 1 landing page is static, so script-src/style-src use
+      'unsafe-inline' (no nonce pipeline) and the app sets neither
+      Permissions-Policy nor HSTS (review R-B-003-05). Inline-script allowance
+      removes most of the CSP's XSS protection and must not reach product UI.
+    severity: medium
+    status: open
+    owner: coordinator
+    component: C11
+    blocks: [P6]
+    repayment_trigger: Nonce-based CSP via middleware without 'unsafe-inline' for scripts, Permissions-Policy set, HSTS at the TLS terminator, all covered by header tests.
+    recorded: 2026-10-11
+  - id: TD-018
+    title: Dependency age cutoff is not checked automatically
+    description: >
+      ADR-0005 §6 / ADR-0006 require every locked version to predate the
+      cutoff except recorded security-patch exceptions. Today this is verified
+      by reviewers against registry publish times (review R-B-003-08); nothing
+      in CI fails if a lock entry is newer than allowed.
+    severity: low
+    status: open
+    owner: coordinator
+    component: C11
+    blocks: []
+    repayment_trigger: A CI check compares uv.lock and package-lock.json publish times with the cutoff plus the ADR-0006 exceptions table and fails on any unrecorded newer entry.
+    recorded: 2026-10-11
+  - id: TD-019
+    title: Migrations cannot run with AO_ENV=prod under least privilege
+    description: >
+      Settings require AO_DATABASE_URL and AO_REDIS_URL when env=prod
+      (ADR-0005 section 3), but the migrate job holds only the migration-role
+      URL, so a prod-mode migrate fails closed (review R-A-004-06). Giving the
+      migrator the app credentials would break least privilege.
+    severity: medium
+    status: open
+    owner: coordinator
+    component: C11
+    blocks: [P11]
+    repayment_trigger: A superseding ADR defines a migration-only settings context (or equivalent) and a prod-mode migrate runs with only the migration credentials.
+    recorded: 2026-10-11
+  - id: TD-020
+    title: Compose passes secrets as plain environment variables
+    description: >
+      Role and superuser passwords sit in the postgres container environment
+      and the DSN in the backend environment, visible via docker inspect
+      (review R-A-004-07). Accepted for the local stack only; Docker access is
+      already root-equivalent there.
+    severity: medium
+    status: open
+    owner: coordinator
+    component: C11
+    blocks: [P11]
+    repayment_trigger: Secrets supplied via *_FILE / Docker secrets (POSTGRES_PASSWORD_FILE, AO_PG_*_PASSWORD_FILE, file-based app settings) before any shared or production deployment.
+    recorded: 2026-10-11
+  - id: TD-021
+    title: Redis runs without authentication or TLS
+    description: >
+      Redis is reachable only on the internal compose network and holds no
+      data in Phase 1 (review R-A-004-08), but has no ACL user, password or
+      TLS.
+    severity: medium
+    status: open
+    owner: coordinator
+    component: C11
+    blocks: [P11]
+    repayment_trigger: AO_REDIS_URL carries an ACL user and password (TLS across hosts) before production or before any feature stores data in Redis or lets input reach it.
+    recorded: 2026-10-11
+  - id: TD-022
+    title: Log redaction hides agent usage metrics such as prompt_tokens
+    description: >
+      ADR-0005 section 3 makes any key containing "token" secret, so
+      prompt_tokens, completion_tokens, max_tokens and tokenizer are redacted
+      in logs (review R-A-002-205). Safe, but it hides metrics an agent
+      observatory needs once usage data flows through the system.
+    severity: low
+    status: open
+    owner: coordinator
+    component: C11
+    blocks: [P2]
+    repayment_trigger: A superseding ADR (before the P2 event protocol freezes) defines a narrow exemption, e.g. keys ending in _tokens or token_count with integer values, implemented and tested in core.logging.
+    recorded: 2026-10-11
+  - id: TD-012
+    title: Log text scrubber misses a few rare key/value shapes
+    description: >
+      Reviewer A round 3 (R-A-002-301..304) found remaining best-effort gaps
+      in core.logging's text scrubber: column-aligned values with four or more
+      spaces around the separator, JSON-escaped keys inside strings
+      (\"password\": ...), PGP private key blocks, and a value that already
+      begins with [REDACTED]. Documented limits also include scheme-less
+      user:pw@host, CLI --password X, URL-encoded password%3DX, pydantic
+      input_value and unquoted values containing spaces. Structured (key-based)
+      redaction is unaffected.
+    severity: low
+    status: open
+    owner: coordinator
+    component: C11
+    blocks: [P3]
+    repayment_trigger: The four shapes in R-A-002-301..304 are masked with linear-time patterns and tests, before adapters (P3) start sending third-party text into logs.
+    recorded: 2026-10-11
+  - id: TD-023
+    title: Readiness failures log once per caller during an outage
+    description: >
+      Single-flight bounds probes to one per service, but every /readyz caller
+      sharing a failed probe still logs a full traceback through run_checks.
+      /readyz is unauthenticated, so log volume grows with request concurrency
+      while the database is down (review R-A-006-04: 210 calls in 40 s produced
+      455 log lines; no secrets).
+    severity: low
+    status: open
+    owner: coordinator
+    component: C11
+    blocks: [P11]
+    repayment_trigger: A shared probe failure is logged once per probe (sharing callers return ok=False silently) or /readyz is rate-limited, with a test bounding log lines per outage window.
+    recorded: 2026-10-12
+  - id: TD-024
+    title: A failed readiness probe resets the pool shared with application queries
+    description: >
+      main.py disposes the whole engine pool after a failed or timed-out
+      database probe so stalled idle connections are dropped (R-A-006-01). With
+      application traffic, a slow-but-alive database would drop idle
+      connections every readiness window and force reconnects under load
+      (reviews R-A-006-05, R-B-006-05). Checked-out connections and in-flight
+      transactions are unaffected. Phase 1 has no application queries.
+    severity: medium
+    status: open
+    owner: coordinator
+    component: C11
+    blocks: [P3]
+    repayment_trigger: Before the first product queries (P3), the readiness probe uses its own small engine/pool, or only the probe's connection is invalidated, or resets require N consecutive failures — with the stalled-connection recovery test still passing.
+    recorded: 2026-10-12
+  - id: TD-013
+    title: Next.js-specific ESLint rules are not enabled
+    description: >
+      eslint-config-next pulls braces 3.0.3 (GHSA-vfj7-8cjw-p6xm, no fixed
+      version) through @next/eslint-plugin-next and fast-glob, so it was
+      removed (ADR-0006). Generic TypeScript, React, React Hooks and jsx-a11y
+      rules still run with zero warnings; Next rules such as
+      no-html-link-for-pages and no-img-element do not. Low impact while the
+      frontend has no product UI.
+    severity: low
+    status: open
+    owner: coordinator
+    component: C11
+    blocks: [P6]
+    repayment_trigger: Restore the Next ESLint plugin once a release without a vulnerable braces chain exists (or braces ships a fix), with the full npm audit still clean.
+    recorded: 2026-10-11

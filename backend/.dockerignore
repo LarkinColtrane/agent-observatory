@@ -1,0 +1,11 @@
+# Build context is ./backend: send only what the image needs.
+*
+!pyproject.toml
+!uv.lock
+!src/
+!alembic.ini
+!migrations/
+**/__pycache__
+**/*.pyc
+**/.env
+**/.env.*
