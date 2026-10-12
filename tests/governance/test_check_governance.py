@@ -558,12 +558,13 @@ class TestGovernanceState(CheckerCase):
         self.set_phase("P1", status="in_progress")  # fixture state, not the live register
         self.set_pending({"tag": "refs/heads/main", "commit": "self", "message": "m"},
                          {"tag": "contract-nope-v1.0.0", "commit": "HEAD", "message": ""},
-                         {"tag": "phase-P1-v1.0.0", "commit": "self", "message": "m"})
+                         # A tag that does not exist: existing tags are skipped as audit records.
+                         {"tag": "phase-P1-v9.9.9", "commit": "self", "message": "m"})
         self.assertFails(r"pending_tags\[0\]: invalid tag name 'refs/heads/main'",
                          r"pending_tags\[1\] contract-nope-v1\.0\.0: commit must be a 40-hex sha or 'self'",
                          r"pending_tags\[1\] contract-nope-v1\.0\.0: message must be non-empty",
                          r"unknown contract 'nope'",
-                         r"pending_tags\[2\] phase-P1-v1\.0\.0: phase P1 is not in gate_review/closed")
+                         r"pending_tags\[2\] phase-P1-v9\.9\.9: phase P1 is not in gate_review/closed")
 
     def test_existing_tag_entry_is_an_audit_record(self) -> None:
         # Review P1B-10: once created, a kept entry must not fail CI when the
