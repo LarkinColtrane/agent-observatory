@@ -393,7 +393,11 @@ debt:
       rejects the enumerated invisible characters. NFKC does not fold cross-script
       confusables, so a key such as "p<Cyrillic a>ssword=X" evades the text tier
       (review R-A-P2-002-03). Credential-shaped values (PEM, JWT, key prefixes,
-      bearer) are still detected. Rejected events are never stored raw.
+      bearer) are still detected. Rejected events are never stored raw. Same
+      class: Ids skip the text tier, so an Id shaped like password:x is
+      accepted (R-A-P2-002-22), and a quarantine record's raw_sha256 is unkeyed,
+      so an undetected low-entropy secret could be guessed from it
+      (R-A-P2-002-28).
     severity: low
     status: open
     owner: reviewer-a

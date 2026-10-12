@@ -343,20 +343,37 @@ There are two detector tiers. Both are linear-time and versioned as
 independently of `core.logging`. Each check runs on a string **and** on its
 NFKC form; a hit on either counts.
 
-- **Credential detectors** run on every key and every string, Ids included:
-  - PEM and PGP private-key blocks;
-  - JWTs (`eyJ…​.eyJ…​.…`);
-  - `Bearer`/`Basic` credentials;
-  - URL userinfo (a user name and password before the `@` of a URL authority);
-  - common key prefixes: `sk-`, `ghp_`, `gho_`, `github_pat_`, `xox[abposr]-`,
-    `AKIA`/`ASIA` followed by 16 characters, `AIza`.
+- **Credential detectors** run on every key and every string, Ids and RelPaths
+  included. The v1 patterns are exact. They are ASCII and case-sensitive
+  unless marked, and `B` is the left boundary `(?<![A-Za-z0-9_-])`:
+
+  | Detector | v1 pattern |
+  |---|---|
+  | OpenAI-style key | `B sk-[A-Za-z0-9_-]{20,}` |
+  | GitHub token | `B gh[pousr]_[A-Za-z0-9]{36,}` |
+  | GitHub fine-grained token | `B github_pat_[A-Za-z0-9_]{22,}` |
+  | Slack token | `B xox[abposr]-[A-Za-z0-9-]{10,}` |
+  | AWS access key id | `(?<![A-Z0-9])(?:AKIA\|ASIA)[A-Z0-9]{16}(?![A-Z0-9])` |
+  | Google API key | `B AIza[A-Za-z0-9_-]{35}` |
+  | JWT | `B eyJ[A-Za-z0-9_-]{8,}\.eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]*` |
+  | Bearer/Basic credential | `(?i:bearer\|basic)\s+[A-Za-z0-9._~+/-]{16,}=*` |
+  | PEM/PGP private key | `-----BEGIN [A-Z ]{0,40}PRIVATE KEY( BLOCK)?-----` |
+  | URL userinfo | `://`, then a user part of characters other than `/`, whitespace, `@` and `:`, then `:`, then a password part of characters other than `/`, whitespace and `@`, then `@` |
+
+  So `task-42`, `desk-ops` and "Basic authentication enabled" are not hits.
 - **Text detectors** run on Text, ProviderRef, ToolName, ModelName and
-  extension string values:
+  extension string values (not on Ids or RelPaths):
   - ADR-0005's key/value scrub (`password=x`, `token: x`, `'api_key': 'x'`);
-  - secret-named CLI options written with whitespace or attached (`--password X`,
-    `--api-key=X`, `-p X`, `-pX` after `mysql`/`psql`-style tools);
+  - secret-named options (ADR-0005 key rules) written with whitespace or
+    attached with `=`: `--password X`, `--api-key=X`;
+  - `-p<value>` attached, when the command's first word is `mysql`,
+    `mysqldump`, `mysqladmin`, `mariadb` or `mariadb-dump`;
   - `-u`/`--user` values of the form `user:pass`;
   - `set <secret-named key> <value>`.
+- **Known limit (TD-026):** Ids skip the text tier so that structural ids
+  such as `sess:auth:42` or `tokenizer:abc` stay valid. An Id shaped like
+  `password:x` is therefore accepted. Ids are opaque references that
+  adapters build (§4), never free text.
 - **Secret-named keys.** Any key whose name is secret-named under ADR-0005
   rules is a hit, at any depth, extensions and unknown fields included. The
   only exemption: the **key-name test** (not the value scan) is skipped for a
@@ -373,6 +390,10 @@ sanitised; an adapter hashes a native id that hits a credential detector (§4).
 
 Known limit (TD-026): cross-script homoglyphs, such as a Cyrillic `а` in
 `pаssword=`, are not folded by NFKC and can evade the text tier.
+`SECRET_RULES_VERSION` pins `unicodedata.unidata_version` (15.1.0 for v1). A
+test asserts it, and a change is a rules patch. NFKC can expand a string up
+to 18 times, so the 64 KiB timing test includes NFKC-expanding input such as
+U+FDFA.
 
 ### 10.4 Never in v1 events
 
@@ -409,12 +430,14 @@ may still contain them, which is one reason it is classified sensitive (§10.6).
 |---|---|
 | identifier | `event_id`, `causation_id`, `evidence_event_ids`, every Id, WorkspaceId, `provider_event_id` |
 | metadata | `spec_version`, `event_type`, timestamps, `source.*` except `provider_event_id`, enums, Codes, Counts, durations, `exit_code`, `attempt`, `tool_name`, `model`, `usage`, `pricing_ref` |
-| sensitive-text | `command`, `query`, `title`, `role`, `display_name`, `message`, extension string values |
+| sensitive-text | `command`, `query`, `title`, `role`, `display_name`, `message`, extension string values (non-string extension values are metadata) |
 | sensitive-path | `path`, `previous_path`, `target_path` |
 
 Ingestion policy (P4) works within these limits:
 - It may only reject events, or remove whole optional `sensitive-*` fields
-  **before** acceptance.
+  **before** acceptance. Extension values are removed only as whole
+  `extensions` namespaces, never one value at a time, and the event after
+  the policy is re-validated (checks 9–15) before acceptance.
 - The fingerprint and duplicate rules then apply to the event after the
   policy, and the policy id is recorded in `RecordedEvent`.
 - A policy never edits a value in part.
@@ -431,7 +454,9 @@ Ingestion policy (P4) works within these limits:
 - **Content denylist.** A key whose normalised name (ADR-0005
   normalisation) contains any of these is a `schema_violation`: `prompt`,
   `completion`, `content`, `response`, `body`, `stdout`, `stderr`, `output`,
-  `input`, `messages`, `env`, `header`.
+  `input`, `messages`, `env`, `header`. The denylist applies to every key
+  inside `extensions`, to every key of an extension event payload, and to
+  namespace and vendor names.
 - Consumers ignore namespaces they do not know, and core semantics never
   depend on extensions.
 - Unknown provider fields are **not** carried automatically: an adapter must
@@ -491,7 +516,8 @@ every check whose disposition is quarantine runs after the secret scan.
   secret scan has not passed, and a hash of a templated document with one
   short secret would be an offline guessing oracle.
 - A **quarantine record** is a drop record plus `raw_sha256` (the scan has
-  passed) and those of `workspace_id`, `event_id`, `event_type`,
+  passed; the residual risk of an undetected low-entropy secret behind this
+  unkeyed digest is part of TD-026) and those of `workspace_id`, `event_id`, `event_type`,
   `spec_version`, `source.provider` and `source.adapter` that individually
   satisfy their own scalar rule. Nothing else is kept.
 - An `unsupported_version` event is not reprocessed. The emitter re-sends it
@@ -506,8 +532,9 @@ every check whose disposition is quarantine runs after the secret scan.
   pointer by segment-wise code-point order.
 - Rejections never echo values or unknown keys.
 
-**`validate_event(data)`** first checks that `data` is an acyclic tree of
-`dict[str, …]`, `list`, `str`, `int` and `bool`. Any other type, including
+**`validate_event(data)`** first checks that `data` is an acyclic tree whose
+nodes have exactly the built-in types `dict` (with exact `str` keys), `list`,
+`str`, `int` and `bool`. Any other type, subclasses included, and also
 `float` and `None`, is `invalid_json` (drop). It also checks depth ≤ 16
 (`too_deep`) and canonical size ≤ 64 KiB (`too_large`), then runs checks 7–15.
 
@@ -551,8 +578,12 @@ canonical_json(e)`. JSON lines files hold one canonical event per line.
   a secret or forbidden content is replaced by a tombstone `{event_id,
   workspace_id, fingerprint, erased_at, reason_code}`. The original
   fingerprint stays as evidence of what was erased. Replays treat a
-  tombstone as an event of unknown content. This follows the
-  security-baseline leak procedure, and P4 implements it. A newer
+  tombstone as an event of unknown content. Erasure covers every copy of
+  the event: projections, exports and trace files, caches, indexes, and
+  backups within their retention. It is done only after the leaked
+  credential has been rotated, because the kept fingerprint could otherwise
+  be used to confirm a guessed secret. This follows the security-baseline
+  leak procedure, and P4 implements it. A newer
   secret-rule version never changes stored events by itself; re-scanning is
   an explicit operation.
 
@@ -605,9 +636,10 @@ order. Ingestion (P4) applies them against the store. Later phases must also:
   - changing a meaning or unit;
   - tightening a rule;
   - changing the canonical form, either fingerprint input, or the `event_id` derivation.
-- **Security exception.** Detectors may be added and the forbidden set may
-  grow in a patch release (`SECRET_RULES_VERSION` + 1) with a superseding ADR
-  signed off by Reviewer A. This tightening is not breaking. Stored events
+- **Security exception.** Detectors may be added, the forbidden set may
+  grow, and a detector may be narrowed to remove a demonstrated false
+  positive, in a patch release (`SECRET_RULES_VERSION` + 1) with a
+  superseding ADR signed off by Reviewer A. This tightening is not breaking. Stored events
   are handled as described in §14.
 - **Migration:** stored events are never rewritten except by erasure (§14).
   Each version's validator is kept for replay. Readers upcast older majors in
