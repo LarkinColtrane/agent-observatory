@@ -180,6 +180,15 @@ class TestRegisters(CheckerCase):
         self.path("docs/assumptions.yaml").write_text("assumptions: [\n  - id: A-001\n")
         self.assertFails(r"docs/assumptions\.yaml: invalid YAML")
 
+    def test_duplicate_key_in_register_is_rejected(self) -> None:
+        # Regression for R-B-P2-006-07: a second `history:` key silently replaced the first.
+        self.edit("docs/assumptions.yaml", "    recorded: 2026-10-10\n", "    recorded: 2026-10-10\n    status: open\n")
+        self.assertFails(r"docs/assumptions\.yaml: duplicate key 'status' \(line \d+\)")
+
+    def test_duplicate_key_in_governance_state_is_rejected(self) -> None:
+        self.edit("docs/governance-state.yaml", "schema_version: 1\n", "schema_version: 1\nschema_version: 1\n")
+        self.assertFails(r"docs/governance-state\.yaml: duplicate key 'schema_version'")
+
     def test_top_level_list_is_clean_failure(self) -> None:
         self.path("docs/assumptions.yaml").write_text("- id: A-001\n")
         self.assertFails(r"docs/assumptions\.yaml: top level must be a mapping")
