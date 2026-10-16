@@ -132,8 +132,11 @@ contracts:
 # AO-P2-001 released with PR #9 (ce93f44); AO-P2-002 released with its PR. AO-P2-003..005 run in sequence under one owner,
 # so each claim is recorded when the previous one is released.
 # AO-P2-003..005 (w-p-protocol) completed in sequence and were released at integration (p2/003-integration).
-# AO-P2-008 (w-p-protocol) parts 1 and 2 released at integration.
-claims: []
+# AO-P2-008 (w-p-protocol) parts 1 and 2 released at integration (PR #11).
+claims:
+  - task: AO-P2-007
+    owner: validation-agent
+    paths: [docs/phases/P2-gate-report.md, docs/phases/P2-tasks/AO-P2-007.handoff.yaml]
 
 # Annotated tags to be created by .github/workflows/release-tags.yml on main
 # (ADR-0005 §7). Entries stay as the audit record; existing tags are never moved.

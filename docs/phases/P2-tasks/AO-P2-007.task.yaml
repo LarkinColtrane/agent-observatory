@@ -1,0 +1,34 @@
+task_id: AO-P2-007
+title: Level 3 gate and owner closure checklist from a fresh clone
+phase: P2
+owner: validation-agent
+reviewers:
+  independent: [reviewer-a, reviewer-b]
+  specialist: []
+depends_on: [AO-P2-008]
+blocks: []
+objective: >
+  Execute every Level 3 gate item (docs/phase-quality-gates.md) and answer
+  every item of the owner's 44-item closure checklist
+  (docs/phases/P2-closure-checklist.md) from a fresh clone of GitHub main,
+  without having built any of Phase 2, and write the gate report.
+inputs:
+  frozen_contracts: [docs/adr/0005-phase-1-foundation-contract.md@contract-phase1-foundation-v1.0.0]
+  adrs: [docs/adr/0008-universal-event-protocol.md, docs/adr/0007-typed-usage-telemetry-in-logs.md]
+  assumptions: [A-001, A-013]
+owned_paths: [docs/phases/P2-gate-report.md, docs/phases/P2-tasks/AO-P2-007.handoff.yaml]
+read_only_paths: [backend, frontend, scripts, .github, docs/adr, docs/reviews]
+hotspots: []
+allocated_ids: {assumptions: [], debt: [TD-030]}
+out_of_scope: [code changes, contract changes]
+acceptance_criteria:
+  - {id: AC1, statement: "Level 3 items 1-11 executed with exact commands and real results; item 9 injects the protocol's own failure modes (malformed, oversized, duplicate, conflicting, out-of-order, future-version, secret-bearing events) through parse_event and validate_event", verified_by: docs/phases/P2-gate-report.md}
+  - {id: AC2, statement: "every one of the 44 owner checklist items has pass, fail, not_run or not_applicable with evidence or a written reason; not_run is never pass", verified_by: docs/phases/P2-gate-report.md}
+testing:
+  level_1: n/a
+  level_2: n/a
+  adversarial_cases: [malformed events, oversized events, duplicate and conflicting events, out-of-order delivery, future versions, secret-bearing payloads, usage telemetry attacks]
+security_notes: synthetic secrets only, built by concatenation; nothing credential-shaped is written to the report.
+failure_mode: the gate stays open on any failed or unrun item.
+rollback: n/a (report only)
+budget: {max_agent_turns: 80, escalate_if: any gate item cannot run}
