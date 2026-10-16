@@ -136,7 +136,7 @@ contracts:
 claims:
   - task: AO-P2-008
     owner: w-p-protocol
-    paths: [backend/src/observatory/events, backend/tests/unit/events]
+    paths: [backend/src/observatory/events, backend/tests/unit/events, backend/tests/fixtures/events, docs/contracts/event-protocol-v1.schema.json, backend/src/observatory/core/logging.py, backend/tests/unit/test_logging.py]
 
 # Annotated tags to be created by .github/workflows/release-tags.yml on main
 # (ADR-0005 §7). Entries stay as the audit record; existing tags are never moved.
