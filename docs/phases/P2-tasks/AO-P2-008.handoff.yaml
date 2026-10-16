@@ -1,0 +1,137 @@
+task_id: AO-P2-008
+from: w-p-protocol
+to: coordinator
+status: complete
+commit: 1165d9c
+branch: p2/008-review-fixes
+summary: >
+  Fixes every accepted AO-P2-006 finding and implements ADR-0008 amendments
+  C14-C26, starting from p2/003-integration at 160eb38.
+
+  The events text tier is rewritten:
+  - a value counts as already redacted only when it is exactly [REDACTED];
+    any other value starting with it is masked whole (C18);
+  - quoted values run to their closing quote or to the end of the string (C19);
+  - CLI coverage is extended as C20 lists, linearly, with one key/value scan
+    and one shell-like tokenisation per string (C20);
+  - every check also runs on the stripped form (C21).
+
+  core.logging applies C18 and exposes normalize_key. Event and RecordedEvent
+  validation is strict whatever strict= the caller passes, and the JSON and
+  string entry points raise (C22). The recorded-rules override is private and
+  token-bound (C23). Importing the package asserts Unicode 15.0.0, and the
+  envelope documents that events are process-local (C24).
+
+  Further changes:
+  - currency list: 164 codes, adding XAF, XCD, XCG, XOF and XPF (C16);
+  - informative schema: event_type admits extension types (C26);
+  - the 16 payload models are re-exported;
+  - the C13 projection strips the provider prefix only at Id positions;
+  - the reference trace is regenerated: dependants complete after their
+    dependencies, the coordinator terminates last, and one event has no
+    stream and no occurred_at.
+
+  The commit ids in the AO-P2-003, -004 and -005 handoffs (79a80dd, 557ed0d,
+  b88d93e) refer to my pre-squash task branches. All three were squashed into
+  918050c on p2/003-integration, and each of those handoffs now says so
+  (R-B-P2-006-12(d)).
+inspected:
+  - docs/adr/0008-universal-event-protocol.md (amendments C14-C26)
+  - docs/phases/P2-tasks/AO-P2-008.task.yaml
+  - scratchpad/reviews/p2-006-A.md and p2-006-B.md
+  - scratchpad/revA-006/probes (p1-p11) and scratchpad/revB-derive (derive.py, mutate.py)
+  - backend/src/observatory/core/logging.py and backend/tests/unit/test_logging.py
+searched_for_reuse:
+  - query: ADR-0005 key rules for the C20 key/value scan
+    result: reused is_secret_key and the now-public normalize_key from core.logging. The events key/value scan is its own implementation, because C19 and C20 (=>, unbounded whitespace, pwd suffix, quotes to the end of the string) apply to the events text tier only. core.logging takes only C18.
+changes:
+  - {path: backend/src/observatory/events/text.py, kind: modified, note: "C18-C21 text tier, stripped form, C24 import-time Unicode check"}
+  - {path: backend/src/observatory/core/logging.py, kind: modified, note: "C18 exact-[REDACTED] rule in mask_key_values; public normalize_key (alias _normalize_key kept)"}
+  - {path: backend/src/observatory/events/envelope.py, kind: modified, note: "C22 strictness and refused entry points, C23 private token-bound recorded rules, RecordedEvent moved here, C24 docstring"}
+  - {path: backend/src/observatory/events/validation.py, kind: modified, note: RecordedEvent re-exported from envelope}
+  - {path: backend/src/observatory/events/payloads.py, kind: modified, note: imports public normalize_key}
+  - {path: backend/src/observatory/events/currency.py, kind: modified, note: C16 (164 codes)}
+  - {path: backend/src/observatory/events/schema.py, kind: modified, note: C26 event_type anyOf enum or extension pattern}
+  - {path: backend/src/observatory/events/__init__.py, kind: modified, note: 16 payload models re-exported}
+  - {path: docs/contracts/event-protocol-v1.schema.json, kind: modified, note: regenerated}
+  - {path: backend/tests/fixtures/events/reference.py, kind: modified, note: R-B-P2-006-11 scenario changes}
+  - {path: backend/tests/fixtures/events/reference-trace-v1.jsonl, kind: modified, note: "regenerated (59 events)"}
+  - {path: backend/tests/fixtures/events/reference-trace-v1.sha256, kind: modified, note: new digest}
+  - {path: backend/tests/fixtures/events/mappers.py, kind: modified, note: projection strips the prefix at Id positions only}
+  - {path: backend/tests/unit/events/test_review_fixes.py, kind: added, note: regression tests for the findings and C14-C24}
+  - {path: backend/tests/unit/events, kind: modified, note: "updated tests (mysql any-word rule, linearity cases plus scaling test, currency, schema, public API, trace, projection)"}
+  - {path: backend/tests/unit/test_logging.py, kind: modified, note: C18 and normalize_key tests}
+  - {path: docs/phases/P2-tasks/AO-P2-003.handoff.yaml, kind: modified, note: squash note on commit}
+  - {path: docs/phases/P2-tasks/AO-P2-004.handoff.yaml, kind: modified, note: squash note on commit}
+  - {path: docs/phases/P2-tasks/AO-P2-005.handoff.yaml, kind: modified, note: squash note on commit}
+contracts:
+  consumed: []
+  changed: []
+acceptance_criteria:
+  - {id: AC1, met: true, evidence: "test_review_fixes.py: test_a_value_starting_with_redacted_is_still_a_hit (8 forms), test_partial_credential_masks_mask_the_whole_value, test_quoted_values_are_masked_whole; test_logging.py: test_a_value_that_only_starts_with_redacted_is_masked_whole; reviewer probe p1: every case is secret_detected and the sanitised output has no residue"}
+  - {id: AC2, met: true, evidence: "test_cli_coverage (24 forms), test_detector_time_scales_linearly (64 KiB / 16 KiB < 6, best of 3), 64 KiB -u=, --a= and --user= cases; probe p2: -u= 32 ms and --a= 32 ms parse (previously 3.9 s and 1.5 s)"}
+  - {id: AC3, met: true, evidence: "test_forbidden_characters_cannot_hide_a_secret, test_json_and_string_validation_are_refused, test_envelope_is_strict_whatever_the_caller_asks (model_validate and TypeAdapter with strict=False), test_no_public_route_stamps_a_new_event_with_older_rules, test_unicode_data_mismatch_fails_closed (subprocess import)"}
+  - {id: AC4, met: true, evidence: "test_c14_content_fingerprint_keeps_an_empty_time_object, test_c15_core_family_vendor_is_a_schema_violation, test_currency_allowlist_is_pinned and test_regional_x_currencies_are_accepted, test_schema_admits_every_valid_event_type"}
+  - {id: AC5, met: true, evidence: "test_delta_usage_with_an_unequal_unit_id, test_late_observation_boundary_is_strict, test_array_indices_compare_numerically (reviewer B mutate.py: 23 of 24 mutants killed; the survivor, stream-less seq -1 to 0, is the equivalent mutant reviewer B identified); test_public_api_matches_section_17; test_normalize_key_is_public; test_trace_is_temporally_consistent; test_projection_unqualifies_only_id_positions"}
+checks:
+  - level: L1
+    command: cd backend && .venv/bin/ruff check . && .venv/bin/ruff format --check . && .venv/bin/mypy && .venv/bin/lint-imports
+    ran: true
+    result: pass
+    evidence: "All checks passed; 71 files already formatted; mypy no issues in 29 source files; Contracts: 2 kept, 0 broken"
+  - level: L2
+    command: cd backend && .venv/bin/pytest tests/unit -q && .venv/bin/bandit -q -r src
+    ran: true
+    result: pass
+    evidence: "1312 passed; bandit exit 0"
+  - level: L2
+    command: cd backend && .venv/bin/pytest --cov=observatory.events --cov-branch tests/unit/events
+    ran: true
+    result: pass
+    evidence: "719 passed; observatory.events 99% (1393 statements, 380 branches)"
+  - level: L2
+    command: reviewer probes revA-006/probes p1-p5, p9 and revB-derive mutate.py and derive.py, run against this branch
+    ran: true
+    result: pass
+    evidence: "p1: every case secret_detected, no residue; p2: worst 64 KiB parse about 31 ms; p3-p5: json and strings refused, strict=False rejected; p9: every form a hit; mutate: 23 of 24 killed (1 equivalent); derive: trace re-derived byte for byte"
+  - level: L1
+    command: python -I scripts/check-governance.py && python -I scripts/check-artifacts.py && bash scripts/secret-scan.sh
+    ran: true
+    result: pass
+    evidence: "PASS / PASS / gitleaks history scan: no leaks found"
+risks_and_open_questions:
+  - "The events key/value scan is now implemented in events/text.py instead of calling core.logging.mask_key_values. C19 and C20 widen it for events only, while ADR-0005 logging takes only C18. Both use ADR-0005's is_secret_key and normalize_key."
+  - "A word that embeds an option after a path ('/abs/--token x') is no longer an option match, because options are whole shell words. The kv scan still covers '--token=x' anywhere. I changed one test input to the shell-realistic form."
+  - "C21: sanitize_text falls back to the NFKC of the stripped form when only that form shows a hit, so in that case its output loses the forbidden characters."
+  - "Reviewer A probe p10 imports the removed public recorded_rules, so it no longer runs. The C23 negative test replaces it."
+new_assumptions: []
+new_debt: []
+specialist_review_needed: [security]
+rollback: Revert the AO-P2-008 commits on p2/008-review-fixes; 918050c is unchanged.
+next_steps: Focused re-review of this diff by Reviewers A and B, then the freeze tag.
+part_2:
+  branch: p2/008b
+  base: 549ab02
+  summary: >
+    Round-2 fixes from AO-P2-006 Reviewer A.
+    R-A-P2-006-13: Event and RecordedEvent refuse JSON-mode validation on every
+    route (TypeAdapter.validate_json, enclosing models, RecordedEvent JSON) with a
+    TypeError naming parse_event. TypeAdapter.validate_strings runs in Python mode,
+    so it is not refused; any string coercion is still rejected by the exactness
+    check. Event construction runs check 7 (safe integer range) on every integer,
+    extensions included, with drop disposition.
+    R-A-P2-006-14 / C18: in the events text tier, Cookie and Authorization values
+    run to the end of the line and count as redacted only if they are exactly
+    [REDACTED].
+    R-A-P2-006-15: Event and RecordedEvent cannot be subclassed (__init_subclass__
+    raises TypeError).
+  tests:
+    - "test_review_fixes.py: test_json_mode_validation_is_refused_on_every_route, test_construction_runs_check_7_on_every_integer, test_every_accepted_event_round_trips_through_parse_event (minimal, trace, golden), test_whole_line_keys_mask_the_rest_of_the_line (4 cases incl. Cookie with a JWT and sid)"
+    - "test_exact_types.py: test_event_and_recorded_event_cannot_be_subclassed"
+    - "probesA6/p13.py: JSON routes refused, ext int 2**60 refused, Evil(RecordedEvent) raises TypeError at class creation"
+  checks:
+    - {command: "cd backend && .venv/bin/ruff check . && .venv/bin/ruff format --check . && .venv/bin/mypy && .venv/bin/lint-imports", ran: true, result: pass}
+    - {command: "cd backend && .venv/bin/pytest tests/unit -q && .venv/bin/bandit -q -r src", ran: true, result: pass, evidence: "1319 passed; bandit exit 0"}
+    - {command: "cd backend && .venv/bin/pytest --cov=observatory.events --cov-branch tests/unit/events", ran: true, result: pass, evidence: "726 passed; 99% (1404 statements, 384 branches)"}
+    - {command: "python -I scripts/check-governance.py", ran: true, result: pass}
+    - {command: "python -I scripts/check-artifacts.py", ran: true, result: fail, evidence: "pre-existing on base 549ab02, independent of this change: the reopened AO-P2-008 claim in governance-state does not list core/logging.py, test_logging.py and the schema json, which the task file owns; a coordinator fix"}

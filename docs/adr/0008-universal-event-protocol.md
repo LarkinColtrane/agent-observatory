@@ -306,7 +306,8 @@ total only as reported. Cache-write tokens count as input.
     otherwise recomputes or ignores it.
   - `pricing_ref` without `estimated_cost` is a `schema_violation`.
 - **Currency** in a usage event must be in the pinned allowlist of active
-  ISO 4217 codes (as of 2026-01-01, excluding `X`-prefixed codes), kept in
+  ISO 4217 codes (as of 2026-01-01, excluding the non-currency `X` codes;
+  see C16), kept in
   `observatory.events`. Changing the list is a minor version. Provider
   credits and other non-ISO units stay unknown, so the cost is omitted.
 - No cost is ever fabricated. An unknown cost is absent.
@@ -381,9 +382,10 @@ NFKC form; a hit on either counts.
     option arguments, and `NAME=value` words. It is compared by basename;
   - `-u`/`--user` values of the form `user:pass`;
   - `set <secret-named key> <value>`.
-- **Known limit (TD-026):** Ids skip the text tier so that structural ids
-  such as `sess:auth:42` or `tokenizer:abc` stay valid. An Id shaped like
-  `password:x` is therefore accepted. Ids are opaque references that
+- **Known limit (TD-026):** Ids and RelPaths skip the text tier, so that
+  structural ids such as `sess:auth:42` or `tokenizer:abc` and ordinary
+  paths stay valid. An Id shaped like `password:x`, or a path segment shaped
+  like `password=x`, is therefore accepted. Ids are opaque references that
   adapters build (§4), never free text.
 - **Secret-named keys.** Any key whose name is secret-named under ADR-0005
   rules is a hit, at any depth, extensions and unknown fields included. The
@@ -401,7 +403,7 @@ sanitised; an adapter hashes a native id that hits a credential detector (§4).
 
 Known limit (TD-026): cross-script homoglyphs, such as a Cyrillic `а` in
 `pаssword=`, are not folded by NFKC and can evade the text tier.
-`SECRET_RULES_VERSION` pins `unicodedata.unidata_version` (15.1.0 for v1). A
+`SECRET_RULES_VERSION` pins `unicodedata.unidata_version` (15.0.0 for v1, the version Python 3.12 ships; see C0 below). A
 test asserts it, and a change is a rules patch. NFKC can expand a string up
 to 18 times, so the 64 KiB timing test includes NFKC-expanding input such as
 U+FDFA.
@@ -755,6 +757,140 @@ rejected corpus of AO-P2-005 is the portable conformance evidence.
     positive and one negative case each;
   - a 64 KiB worst-case timing test for the detectors.
 
+## Clarifications during implementation (before the freeze)
+
+AO-P2-003 raised these points and the coordinator ruled on them. Both
+reviewers signed off on them (`docs/reviews/phase-2-contract-review.md`).
+They make the contract exact without changing its design.
+
+- **C0 (erratum).** The pinned Unicode data version for secret rules v1 is
+  15.0.0, the version of the pinned runtime (Python 3.12). It is not 15.1.0.
+- **C1.** At check 9 the field type is not known yet. The text tier is
+  skipped only for a string at an Id or RelPath position that already
+  satisfies that rule; every other string gets both tiers.
+- **C2.** The quarantine metadata are optional fields of `Rejected`.
+  `source.adapter` is kept only if both its name and its version are valid.
+  `spec_version` matches `^(0|[1-9][0-9]{0,3})\.(0|[1-9][0-9]{0,3})$`.
+- **C3.** For `validate_event`, "raw" is the plain serialisation of the
+  input tree: sorted keys, compact, UTF-8, with no timestamp normalisation.
+  `raw_length` is 0 if the tree cannot be serialised. A
+  container object reachable more than once is `invalid_json` (drop), which
+  blocks reference bombs.
+- **C4.** Each `Event` privately carries the secret-rules version it was
+  validated under: the current version, or the recorded one through
+  `load_recorded`. Only `load_recorded` may set it, and a forged or mutated
+  value never downgrades the rules (fail closed). It is excluded from
+  `canonical_json`, both fingerprints and `Event` equality. The pure
+  functions re-validate under that version.
+- **C5.** If `sanitize_text` finds a hit only in the NFKC form, it sanitises
+  the NFKC form and repeats until the result is stable. If the result never
+  settles, the whole string becomes `[REDACTED]`.
+- **C6.** Each detector detail resolves toward over-masking:
+  - a fixed table of `sudo` and `env` options that take an argument;
+  - `-u` matched in attached form too;
+  - `set` matched case-insensitively;
+  - secret-named options matched after one dash or two.
+- **C7.** Inside `extensions`, the namespace object is depth 1. An
+  extension-event payload follows the namespace rules, including being non-empty.
+- **C8.** `validate_event`'s pre-check `too_large` is drop, as the §12
+  invariant requires.
+
+AO-P2-004 and AO-P2-005 raised five more readings, which the coordinator
+accepted. Reviewers A and B check them in the AO-P2-006 implementation review.
+
+- **C9.** A missing or unequal required scope, a cumulative usage event
+  without `unit_id`, and a `unit_id` that does not equal the required scope
+  field are `schema_violation`. Only the §4 derivation rule and the listed
+  self references are `invalid_reference`.
+- **C10.** A vendor name equal to a core family name is rejected:
+  `x-session.*` fails at `/event_type`, while `x-sessionco.*` is accepted.
+- **C11.** ToolName and ModelName are printable ASCII `0x21`–`0x7e`, so a
+  space is not allowed, as for ProviderRef.
+- **C12.** The `unit_id` equality rule applies whenever `unit_id` is
+  present, delta events included.
+- **C13.** For §18, "the same projection" is compared with the
+  `<provider>:` prefix removed from entity ids. §4 qualifies every entity id
+  by provider, so ids from two shapes can never be literally equal.
+
+## Amendments from the implementation review (AO-P2-006, before the freeze)
+
+The adversarial implementation review found gaps that only show up in
+code. These amendments close them before the freeze. Each one goes toward
+stricter detection or exactness. Both reviewers sign them off with the
+AO-P2-006 fixes.
+
+- **C14 (`content_fingerprint` input).** Removing the four fields leaves the
+  `time` object in place. When `occurred_at` is absent, the digest input
+  contains `"time":{}`. The digest input is not an event, so the §2
+  empty-object rule does not apply to it.
+- **C15 (C10 code).** A vendor name equal to a core family is
+  `schema_violation` (check 13) at `/event_type`, as for a denylisted vendor.
+- **C16 (currency).** Only the non-currency `X` codes are excluded: XAG, XAU,
+  XBA, XBB, XBC, XBD, XDR, XPD, XPT, XSU, XTS, XUA and XXX. The X-prefixed
+  national and regional currencies (XAF, XCD, XCG, XOF, XPF) are allowed.
+- **C17 (names with spaces; loosening).** A provider tool or model name
+  outside ToolName or ModelName, or one that starts with `h.`, is mapped by
+  the adapter to `h.` followed by
+  the first 32 hex characters of `SHA-256(UTF-8(name))`, the same injective
+  rule as §4. Loosening a scalar rule is a minor version (§16).
+- **C18 (already redacted).** A value counts as already redacted only if it
+  is exactly `[REDACTED]`, ending at a quote, a delimiter, whitespace or the
+  end of the string. Any other value that starts with `[REDACTED]` is a hit
+  in the scan, and `sanitize_text` masks the whole value extent. When a
+  credential detector masks only part of a key/value or option value, the
+  rest of that value is masked too. On a whole-line key (`Cookie`,
+  `Authorization`), the value is the rest of the line, as in ADR-0005. The
+  same rule applies to ADR-0005's `core.logging` scrubber.
+- **C19 (quoted values).** In the text tier, a value that starts with `'` or
+  `"` extends to the matching unescaped quote, or to the end of the string.
+- **C20 (CLI coverage).** Each of these over-masks, which is the declared
+  safe direction.
+  - The attached `-p<value>` rule applies when **any** word in the string
+    has a basename in the mysql tool list. Words after `;`, `&&`, `||`, `|`,
+    `docker … exec`, `kubectl … exec` or `timeout` are included.
+  - A short-option cluster (`-Eu`) takes an argument when its last letter
+    does. This applies to the sudo and env skipping and to `-u`.
+  - New rules:
+    - `sshpass -p <value>`;
+    - `redis-cli -a <value>` and `--pass <value>`;
+    - `pass:<value>` after `-passin` or `-passout`;
+    - a key whose normalised name ends in `pwd` (`MYSQL_PWD=x`);
+    - `=>` as a key/value separator;
+    - any amount of horizontal whitespace around `=`, `:` and `=>`.
+  - Every rule stays linear: one tokenisation per string, with no per-match
+    look-ahead to the end of a token.
+- **C21 (stripped form).** The secret scan also runs on the stripped form of
+  each string: the §10.2 characters removed, and TAB and LF folded to a
+  space. A hit is `secret_detected` (drop), so a forbidden character cannot
+  turn a drop into a quarantine.
+- **C22 (acceptance paths).** An event is accepted only through
+  `parse_event`, `validate_event` or, for stored rows only, `load_recorded`.
+  `Event.model_validate_json` and `Event.model_validate_strings` raise.
+  `Event` validation is strict whatever `strict=` argument the caller passes.
+  `Event` construction also runs check 7, and refuses JSON-mode validation,
+  including through a `TypeAdapter` or an enclosing model. `Event` and
+  `RecordedEvent` cannot be subclassed (R-A-P2-006-13, -15).
+- **C23 (recorded rules).** Only `load_recorded` can set an event's rules
+  version; no public helper can. P4 calls `load_recorded` only on rows read
+  from its own event store, and ingestion uses only `parse_event`.
+- **C24 (process-local events).** The C4 stamp is an HMAC under a
+  per-process key, so an `Event` object is valid only in the process that
+  validated it. Events cross process, cache and queue boundaries only as
+  canonical bytes (`parse_event` / `load_recorded`). The module asserts
+  `unicodedata.unidata_version` when it is imported, and a mismatch fails
+  the import (fail closed).
+- **C25 (combining the two duplicate checks).** Ingestion first classifies
+  the incoming event against the stored event with the same `event_id`.
+  That result decides when it is `exact_duplicate`, `redelivery` or
+  `conflict`. Only when it is `distinct` does the slot check apply, giving
+  `sequence_conflict` or `distinct`. A redelivery whose (stream key, `seq`)
+  slot holds another event also raises an alert.
+- **C26 (informative schema).** Regenerating
+  `event-protocol-v1.schema.json` after a tooling-only change (for example a
+  Pydantic upgrade), with no change to any model, is not a contract change;
+  it is reviewed as a patch. The schema must accept every valid extension
+  event.
+
 ## Consequences
 
 - **Positive:**
@@ -774,4 +910,4 @@ rejected corpus of AO-P2-005 is the portable conformance evidence.
 
 ## Review
 
-- Reviewer A: APPROVE (round 4) · Reviewer B: APPROVE_WITH_NOTES (round 4, notes applied) — `docs/reviews/phase-2-contract-review.md`.
+- Contract: Reviewer A APPROVE (round 4) · Reviewer B APPROVE_WITH_NOTES (round 4, notes applied). Clarifications C0–C8: both APPROVE (round 5). Freeze review with implementation (AO-P2-006, C9–C26): Reviewer A APPROVE · Reviewer B APPROVE (round 6) — `docs/reviews/phase-2-contract-review.md`.

@@ -394,8 +394,9 @@ debt:
       confusables, so a key such as "p<Cyrillic a>ssword=X" evades the text tier
       (review R-A-P2-002-03). Credential-shaped values (PEM, JWT, key prefixes,
       bearer) are still detected. Rejected events are never stored raw. Same
-      class: Ids skip the text tier, so an Id shaped like password:x is
-      accepted (R-A-P2-002-22), and a quarantine record's raw_sha256 is unkeyed,
+      class: Ids and RelPaths skip the text tier, so an Id shaped like
+      password:x or a path segment shaped like password=x is accepted
+      (R-A-P2-002-22, R-A-P2-006-09), and a quarantine record's raw_sha256 is unkeyed,
       so an undetected low-entropy secret could be guessed from it
       (R-A-P2-002-28).
     severity: low
@@ -405,3 +406,20 @@ debt:
     blocks: [P11]
     repayment_trigger: A security patch release of the event secret rules (ADR-0008 section 16 exception) adds a pinned confusables skeleton (Unicode TR39) for key names, signed off by Reviewer A.
     recorded: 2026-10-12
+  - id: TD-027
+    title: sanitize_text stops a quoted whole-line Cookie/Authorization value at the closing quote
+    description: >
+      In the event text tier (and core.logging), a Cookie or Authorization value
+      that starts with a quote ends at the matching quote (C19), so in
+      'Authorization: "Bearer <tok>" sid=<s>' the sid value after the quote
+      survives sanitize_text. The unsanitised line is still rejected; the gap is
+      only in what an adapter's sanitize_text call leaves behind (review
+      AO-P2-006 round 3, Reviewer A nit). P3 adapters call sanitize_text, so it
+      must be closed before they ship.
+    severity: low
+    status: open
+    owner: reviewer-a
+    component: C1
+    blocks: [P3]
+    repayment_trigger: A secret-rules patch release (ADR-0008 section 16 security exception, Reviewer A sign-off) makes a whole-line key mask the rest of the line even when the value starts with a quote, in observatory.events and core.logging, with tests.
+    recorded: 2026-10-16

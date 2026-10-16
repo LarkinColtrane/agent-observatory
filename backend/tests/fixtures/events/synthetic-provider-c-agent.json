@@ -1,0 +1,155 @@
+{
+  "_synthetic": true,
+  "agent": "synthetic minimal Python agent",
+  "steps": [
+    {
+      "op": "session_start",
+      "session": "sess-1",
+      "by": "coordinator",
+      "initiator": "human"
+    },
+    {
+      "op": "spawn",
+      "by": "coordinator",
+      "agent": "backend",
+      "role": "Backend"
+    },
+    {
+      "op": "spawn",
+      "by": "coordinator",
+      "agent": "security",
+      "role": "Security Reviewer"
+    },
+    {
+      "op": "task_create",
+      "by": "coordinator",
+      "task": "task-api",
+      "title": "Build the orders API"
+    },
+    {
+      "op": "task_create",
+      "by": "coordinator",
+      "task": "task-review",
+      "title": "Security review (password=abc)",
+      "after": [
+        "task-api"
+      ]
+    },
+    {
+      "op": "task_assign",
+      "by": "coordinator",
+      "task": "task-api",
+      "to": "backend"
+    },
+    {
+      "op": "task_status",
+      "by": "backend",
+      "task": "task-api",
+      "status": "in_progress"
+    },
+    {
+      "op": "tool_start",
+      "by": "backend",
+      "call": "call-1",
+      "tool": "Write",
+      "kind": "file_write",
+      "path": "src/orders.py"
+    },
+    {
+      "op": "tool_end",
+      "by": "backend",
+      "call": "call-1",
+      "ok": true
+    },
+    {
+      "op": "file",
+      "by": "backend",
+      "call": "call-1",
+      "path": "src/orders.py",
+      "change": "created",
+      "added": 40
+    },
+    {
+      "op": "tool_start",
+      "by": "backend",
+      "call": "call-2",
+      "tool": "Bash",
+      "kind": "command",
+      "command": "pytest -q tests/test_orders.py"
+    },
+    {
+      "op": "usage",
+      "by": "backend",
+      "model": "synthetic-model-1",
+      "prompt_tokens": 1300,
+      "cached_prompt_tokens": 800,
+      "completion_tokens": 300
+    },
+    {
+      "op": "tool_end",
+      "by": "backend",
+      "call": "call-2",
+      "ok": false,
+      "exit_code": 1
+    },
+    {
+      "op": "test",
+      "by": "backend",
+      "run": "run-1",
+      "call": "call-2",
+      "passed": 11,
+      "failed": 1,
+      "framework": "pytest"
+    },
+    {
+      "op": "error",
+      "by": "backend",
+      "code": "test_failure",
+      "text": "1 test failed in tests/test_orders.py",
+      "call": "call-2",
+      "traceback": "AssertionError: synthetic"
+    },
+    {
+      "op": "task_assign",
+      "by": "coordinator",
+      "task": "task-review",
+      "to": "security"
+    },
+    {
+      "op": "review",
+      "by": "security",
+      "review": "rev-1",
+      "verdict": "approve",
+      "task": "task-api",
+      "findings": 0,
+      "blocking": 0
+    },
+    {
+      "op": "task_status",
+      "by": "backend",
+      "task": "task-api",
+      "status": "completed"
+    },
+    {
+      "op": "message",
+      "by": "backend",
+      "to": [
+        "coordinator"
+      ],
+      "intent": "notification",
+      "note": "orders API is done"
+    },
+    {
+      "op": "stop",
+      "by": "backend",
+      "agent": "backend",
+      "reason": "completed"
+    },
+    {
+      "op": "session_end",
+      "session": "sess-1",
+      "by": "coordinator",
+      "outcome": "completed"
+    }
+  ]
+}

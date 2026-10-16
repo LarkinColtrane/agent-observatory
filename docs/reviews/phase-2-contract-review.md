@@ -63,6 +63,44 @@ Both reviewers checked only the round-3 diff. Notes applied before merge:
 Carried into the AO-P2-003 review: tests for skipping sudo/env options, and
 a requirement that `load_recorded` is never used to accept a new event.
 
+## Round 5 (`5894c26`, `d79215a`): clarifications C0–C8 raised during AO-P2-003, A APPROVE, B APPROVE
+
+W-P stopped AO-P2-003 on one contradiction and eight gaps:
+- the pinned Unicode data version said 15.1.0, but Python 3.12 ships 15.0.0;
+- tier selection at check 9;
+- the quarantine metadata fields;
+- `validate_event` raw bytes;
+- the rules version carried by an event;
+- `sanitize_text` on NFKC-only hits;
+- detector details;
+- extension depth;
+- the `too_large` disposition.
+
+The coordinator ruled on each as clarification C0–C8 in ADR-0008. C0 is an
+erratum; the others resolve toward over-scanning and over-masking, with no
+change of design. Both reviewers signed off, and their wording notes on C3
+and C4 are applied (`d79215a`). Reviewer A's C4 note was passed to AO-P2-003
+as a test requirement: only `load_recorded` sets the private rules version,
+and it never downgrades.
+
+## Round 6: adversarial implementation review (AO-P2-006, `918050c` → `af8f58d`), A APPROVE, B APPROVE
+
+This is the freeze review that ADR-0003 §3 requires. Fresh reviewer agents
+attacked the implementation and the contract text together; the findings
+and dispositions are in `docs/reviews/phase-2-reviews.md`. The contract
+gained clarifications C9–C13 from implementation and amendments C14–C26
+from this review. Each one tightens the contract or makes it exact; none
+changes the design.
+
+Reviewer B derived the canonical bytes, fingerprints, derived event ids and
+the trace digest from ADR-0008 alone, and they matched the implementation.
+Both reviewers state that ADR-0008 with C0–C26 can be frozen as
+`contract-event-protocol-v1.0.0`.
+
 <!-- final-verdicts -->
 - **Reviewer A final outcome:** APPROVE — AO-P2-002 round 4 (`bf627d7`)
 - **Reviewer B final outcome:** APPROVE_WITH_NOTES — AO-P2-002 round 4 (`bf627d7`), notes applied before merge
+- **Reviewer A final outcome:** APPROVE — ADR-0008 clarifications C0–C8 (`5894c26`)
+- **Reviewer B final outcome:** APPROVE — ADR-0008 clarifications C0–C8 (`5894c26`), wording notes applied in `d79215a`
+- **Reviewer A final outcome:** APPROVE — ADR-0008 with C0–C26, freeze review AO-P2-006 round 3 (`af8f58d`)
+- **Reviewer B final outcome:** APPROVE — ADR-0008 with C0–C26, freeze review AO-P2-006 round 3 (`af8f58d`)

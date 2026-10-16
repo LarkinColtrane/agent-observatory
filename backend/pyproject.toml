@@ -94,7 +94,7 @@ type = "layers"
 layers = [
     "observatory.main",
     "observatory.api | observatory.db | observatory.cache",
-    "(observatory.events)",  # optional until AO-P2-003 creates it (ADR-0008 §17)
+    "observatory.events",  # ADR-0008 §17 (mandatory since AO-P2-003)
     "observatory.core",
 ]
 containers = []

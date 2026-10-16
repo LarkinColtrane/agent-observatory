@@ -17,7 +17,7 @@ assumptions:
     status: open
     owner: coordinator
     affects: [C1, C2, C3, C6]
-    review_phase: P2
+    review_phase: P3
     validation_plan: >
       Phase 2 (not earlier, ADR-0003): map at least two structurally different
       agent systems onto the draft protocol before freezing it; record
@@ -25,6 +25,7 @@ assumptions:
     recorded: 2026-10-10
     history:
       - 2026-10-10: validation re-targeted from Phase 1 to Phase 2 (ADR-0003, review B-05/A-04).
+      - 2026-10-12: P2 evidence (AO-P2-005) — three structurally different synthetic shapes (a Claude/Codex-like transcript, generic orchestrator webhooks, a minimal custom agent) map to the same canonical projection; the unmappable fields are listed in docs/phases/P2-tasks/AO-P2-005.handoff.yaml and are almost all content deliberately excluded by ADR-0008 section 10.4. Still open because the shapes are synthetic; to be validated against real provider data by the P3 adapters (review_phase moved to P3).
 
   - id: A-002
     statement: >

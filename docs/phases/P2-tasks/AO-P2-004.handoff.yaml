@@ -1,0 +1,77 @@
+task_id: AO-P2-004
+from: w-p-protocol
+to: coordinator
+status: complete
+commit: 557ed0d  # pre-squash branch commit; squashed into 918050c on p2/003-integration
+branch: p2/004-payloads
+summary: >
+  The 16 §8 payload models (closed, strict, frozen, no defaults or nulls) replace
+  the AO-P2-003 placeholders in observatory.events.taxonomy. The registry
+  dispatch is kept. Cross-field rules raise one error at the smallest violated
+  field; required-scope rules run against the event scope (check 13); the
+  listed self references are invalid_reference with exact pointers (check 14).
+  usage.recorded reuses the exact ADR-0007 UsageMetrics, with the §9 rules and
+  a pinned ISO 4217 allowlist. Extension vendors cannot be denylisted words or
+  core family names. The informative JSON Schema is generated deterministically
+  and pinned by a golden test.
+inspected:
+  - docs/adr/0008-universal-event-protocol.md (sections 8, 9, 11, 12, 17 and clarifications C0-C8)
+  - docs/phases/P2-tasks/AO-P2-004.task.yaml
+  - backend/src/observatory/core/telemetry.py
+  - /usr/share/iso-codes/json/iso_4217.json (Debian iso-codes 4.16.0, source of the currency list)
+searched_for_reuse:
+  - query: usage and money types
+    result: reused UsageMetrics and Money from core.telemetry (exact types, unchanged)
+  - query: an ISO 4217 list in the stdlib or the locked dependencies
+    result: none; six-group.com blocked by the egress proxy; built from Debian iso-codes 4.16.0 plus amendments, then verified by the coordinator against the datasets/currency-codes mirror of SIX List One
+changes:
+  - {path: backend/src/observatory/events/taxonomy.py, kind: added, note: 16 payload models, scope and reference hooks, PAYLOADS, CORE_FAMILIES}
+  - {path: backend/src/observatory/events/currency.py, kind: added, note: ISO_4217_CURRENCIES frozenset (159 codes after the coordinator's verification) with its source}
+  - {path: backend/src/observatory/events/schema.py, kind: added, note: json_schema(), render(), python -m entry point}
+  - {path: backend/src/observatory/events/payloads.py, kind: modified, note: placeholders removed; check_rules and the scope_errors hook}
+  - {path: backend/src/observatory/events/envelope.py, kind: modified, note: cross-field pointers, required-scope hook, core-family vendor rule}
+  - {path: backend/src/observatory/events/ids.py, kind: modified, note: ToolName, ModelName, Int32, Attempt, IdSet64, UuidSet32; schema hints}
+  - {path: backend/src/observatory/events/validation.py, kind: modified, note: registry import}
+  - {path: backend/tests/unit/events/test_taxonomy.py, kind: added, note: 232 tests}
+  - {path: backend/tests/unit/events/test_schema.py, kind: added, note: golden and determinism tests}
+  - {path: docs/contracts/event-protocol-v1.schema.json, kind: added, note: generated, informative}
+contracts:
+  consumed: []
+  changed: []
+acceptance_criteria:
+  - {id: AC1, met: true, evidence: "test_exactly_the_sixteen_types; test_valid_payloads (full and minimal for each type); test_unknown_fields_are_schema_violations (7 smuggled keys x 16 types); test_required_fields_and_nulls; 71 test_invalid_payloads cases; test_rules_that_hold_in_both_directions; test_smallest_pointer_spans_envelope_and_payload"}
+  - {id: AC2, met: true, evidence: "usage cases in test_invalid_payloads (unit_id, pricing_ref in both directions, currency allowlist, unit owner equality, scope agent); test_currency_allowlist_is_pinned; test_token_count_keys_are_exempt_only_as_integers_in_usage"}
+  - {id: AC3, met: true, evidence: "test_schema.py: test_schema_matches_the_golden_file (the message names the regeneration command), determinism, coverage of every type, no null"}
+checks:
+  - level: L1
+    command: cd backend && .venv/bin/ruff check . && .venv/bin/ruff format --check . && .venv/bin/mypy && .venv/bin/lint-imports
+    ran: true
+    result: pass
+    evidence: "All checks passed; 60 files already formatted; mypy no issues in 29 source files; Contracts: 2 kept, 0 broken"
+  - level: L2
+    command: cd backend && .venv/bin/pytest tests/unit -q && .venv/bin/bandit -q -r src
+    ran: true
+    result: pass
+    evidence: "1066 passed; bandit exit 0"
+  - level: L2
+    command: cd backend && .venv/bin/pytest --cov=observatory.events --cov-branch tests/unit/events
+    ran: true
+    result: pass
+    evidence: "484 passed; observatory.events 99% (1282 statements, 328 branches)"
+  - level: L1
+    command: python -I scripts/check-governance.py && python -I scripts/check-artifacts.py (governance venv)
+    ran: true
+    result: pass
+    evidence: "PASS / PASS; no possible-secret line"
+risks_and_open_questions:
+  - "Reading taken (please confirm): missing or unequal required scope, cumulative unit_id and the unit_id-scope equality are schema_violation (§12 check 13, cross-field rules). Only §4 and the listed self references are invalid_reference."
+  - "Reading taken: no x-<vendor> may have a vendor part equal to a core family (x-session.*, x-task.*); x-sessionco is allowed. Pointer /event_type."
+  - "Reading taken: ToolName and ModelName use printable ASCII 0x21-0x7e, as ProviderRef does, so no spaces."
+  - "Reading taken: the unit_id-scope equality is checked whenever unit_id is present (delta included). An agent.spawned self-spawn is reported at /payload/agent_id."
+  - "Currency list verified (amended on p2/005-fixtures): the coordinator checked it against the datasets/currency-codes mirror of SIX List One (codes-all.csv, fetched 2026-10-12). SLL, CUC and BGN were removed, leaving 159 codes. TD-028 is not needed."
+  - "The schema golden depends on the locked Pydantic version; a Pydantic upgrade may require regeneration."
+new_assumptions: []
+new_debt: []
+specialist_review_needed: [security]
+rollback: Revert the squash commit; AO-P2-003 placeholders return.
+next_steps: AO-P2-005.

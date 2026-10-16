@@ -36,6 +36,26 @@ except ImportError:  # pragma: no cover - environment problem, not a finding
     print("check-governance: PyYAML is required (pip install -r requirements-governance.txt)", file=sys.stderr)
     sys.exit(2)
 
+
+class StrictLoader(yaml.SafeLoader):
+    """SafeLoader that rejects duplicate mapping keys (YAML silently keeps the last).
+
+    Same rule as scripts/check-artifacts.py; review R-B-P2-006-07: a duplicate
+    `history:` key in a register silently dropped an entry.
+    """
+
+    def construct_mapping(self, node: yaml.MappingNode, deep: bool = False) -> dict[Any, Any]:
+        seen: set[Any] = set()
+        for key_node, _ in node.value:
+            key = self.construct_object(key_node, deep=deep)  # type: ignore[no-untyped-call]
+            if isinstance(key, (str, int, float, bool)) or key is None:
+                if key in seen:
+                    raise yaml.constructor.ConstructorError(
+                        None, None, f"duplicate key {key!r}", key_node.start_mark)
+                seen.add(key)
+        return super().construct_mapping(node, deep=deep)
+
+
 REQUIRED_DOCS = [
     "README.md",
     "development-operating-contract.md",
@@ -167,11 +187,13 @@ class Ctx:
         data = None
         if path.is_file():
             try:
-                data = yaml.safe_load(path.read_text(encoding="utf-8", errors="replace"))
+                data = yaml.load(path.read_text(encoding="utf-8", errors="replace"), Loader=StrictLoader)  # noqa: S506
             except yaml.YAMLError as exc:
                 mark = getattr(exc, "problem_mark", None)
                 where = f" (line {mark.line + 1})" if mark else ""
-                self.err(f"docs/{rel}: invalid YAML{where}")
+                problem = str(getattr(exc, "problem", "") or "")
+                kind = problem if problem.startswith("duplicate key") else "invalid YAML"
+                self.err(f"docs/{rel}: {kind}{where}")
             else:
                 if not isinstance(data, dict):
                     self.err(f"docs/{rel}: top level must be a mapping")

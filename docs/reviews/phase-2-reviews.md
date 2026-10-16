@@ -64,6 +64,77 @@ violations rejected without echo; forged nested `Money` and hand-built
 | R-B-P2-001-15 | minor | With one implementer, the goldens lose their independent author | fixed: AO-P2-006 acceptance adds an independent derivation of canonical bytes and fingerprints from ADR-0008 alone |
 | R-B-P2-001-16 | minor | AO-P2-002 task lacked the usage-scope and cost-provenance criterion | fixed: AC4 |
 
+## AO-P2-003..005 and AO-P2-008: event protocol implementation (w-p-protocol), AO-P2-006 adversarial review (reviewers A and B)
+
+These are fresh reviewer agents: Reviewer A (security and privacy) and
+Reviewer B (protocol, methodology and temporal semantics). Each reviewed in
+an independent clone with a fresh `uv sync --locked` venv. Probes and
+derivation scripts were kept outside the repository.
+
+**Round 1** (`918050c`): Reviewer A REQUEST_CHANGES, Reviewer B APPROVE_WITH_NOTES.
+
+Checks: ruff, format, mypy, import-linter and bandit clean; 1208 unit tests
+passed with 98.9% coverage on `observatory.events`; the governance checker,
+artifact checker, governance tests and gitleaks all clean.
+
+Reviewer B's independent derivation from ADR-0008 alone reproduced every
+pinned canonical byte string, both fingerprints, the derived event id and
+the trace SHA-256. Every trace line was a fixed point, and B's own
+`canonical_order` agreed with the code on 3000 of 3000 random sets.
+Mutation testing killed 19 of 24 mutants.
+
+| ID | Sev | Finding | Disposition |
+|---|---|---|---|
+| R-A-P2-006-01 | major | A value starting with `[REDACTED]` counted as already redacted (events and `core.logging`); partial detector masks left the rest of a secret | fixed: C18, an exact `[REDACTED]` rule and whole-value masking in both |
+| R-A-P2-006-02 | major | Quadratic option scan (3.9 s for a 64 KiB event) | fixed: one tokenisation per string, about 30 ms; scaling test |
+| R-A-P2-006-03 | major | CLI forms missed (mysql not as first word, short-option clusters, sshpass, redis-cli, `-passin pass:`, MYSQL_PWD, `=>`, wide spacing) | fixed: C20 |
+| R-A-P2-006-04 | major | Quoted values masked only up to the first space | fixed: C19 |
+| R-A-P2-006-05 | minor | Public `recorded_rules` could stamp a new event with older rules | fixed: C23, private and token-bound |
+| R-A-P2-006-06 | minor | `model_validate_json` and `strict=False` bypassed parse checks | fixed: C22 |
+| R-A-P2-006-07 | minor | A forbidden character could hide a secret and turn a drop into a quarantine | fixed: C21, the stripped-form scan |
+| R-A-P2-006-08, R-B-P2-006-07 | minor | Duplicate `history:` key on A-001; the checker did not reject duplicate keys | fixed: the history is merged (`7c62318`) and the governance checker now rejects duplicate keys, with tests (`f8f6afd`) |
+| R-A-P2-006-09 | nit | TD-026 did not cover RelPaths | fixed |
+| R-A-P2-006-10, R-B-P2-006-09 | nit | Private `_normalize_key` imported across layers | fixed: public `normalize_key` |
+| R-A-P2-006-11, R-B-P2-006-10 | nit / info | Events are process-local; the Unicode pin was only tested | fixed: C24, import-time assertion and documentation |
+| R-A-P2-006-12 | nit | gitleaks `--working-tree` flags gitignored `.pyc` files | declined: the scanner config is not changed to quiet local noise; CI is unaffected; scan a clean tree |
+| R-B-P2-006-01 | medium | `content_fingerprint` input with no `occurred_at` was ambiguous | fixed: C14 (`"time":{}` kept) |
+| R-B-P2-006-02 | medium | The informative schema rejected every extension event | fixed: the schema admits the extension pattern; test; C26 |
+| R-B-P2-006-03 | low | C10 named no code | fixed: C15 |
+| R-B-P2-006-04 | low | The `X` exclusion dropped real currencies | fixed: C16, 164 codes |
+| R-B-P2-006-05 | low | Tool names with spaces; loosening not classified | fixed: C17 and §16 |
+| R-B-P2-006-06 | low | Three surviving mutants | fixed: tests kill them |
+| R-B-P2-006-08 | low | Payload models not re-exported (§17) | fixed |
+| R-B-P2-006-11 | info | Reference-trace narrative gaps | fixed: trace v1 regenerated (59 events, dependency order, coordinator terminated, one stream-less event without `occurred_at`) |
+| R-B-P2-006-12 | info | Projection scope; combining duplicate checks; schema tooling regeneration; handoff commit ids | fixed: Id-only stripping, C25, C26, handoffs note the squash |
+
+**Round 2** (`9eead67`): Reviewer A APPROVE_WITH_NOTES, Reviewer B APPROVE_WITH_NOTES.
+
+- Reviewer A re-ran every probe. The quadratic cases now take 21–28 ms, 21
+  new 64 KiB worst cases stay at or below 145 ms, and a 40,000-case
+  `sanitize_text` fuzz found 0 failures.
+- Reviewer B's derivation matched the regenerated trace (`0ee1ee7e…2e4b`),
+  and 23 of 24 mutants were killed. The survivor is equivalent.
+
+| ID | Sev | Finding | Disposition |
+|---|---|---|---|
+| R-A-P2-006-13 | minor | JSON mode was refused only on `Event`'s own methods; check 7 did not run at construction | fixed: refused on every route via `info.mode`; check 7 at construction; C22 clause |
+| R-A-P2-006-14 | minor | `Cookie` and `Authorization` values were not whole-line in the events text tier | fixed: C18 whole-line rule |
+| R-A-P2-006-15 | nit | A `RecordedEvent` subclass could downgrade rules | fixed: `Event` and `RecordedEvent` cannot be subclassed |
+| R-B-P2-006-N1 | low | C17 was not injective for names starting with `h.` | fixed: C17 hashes those too |
+| R-B-P2-006-N2 | info | In the trace, the coordinator terminates after `session.ended`, and a parent task completes before its subtask; both are legal | P4 replay note: neither is an error |
+
+**Round 3** (`af8f58d`): Reviewer A APPROVE, Reviewer B APPROVE.
+
+- Both reviewers re-ran their checks: 1319 unit tests passed, and coverage
+  on `observatory.events` was 98.7–99%.
+- Reviewer B's derivation was unchanged.
+- Reviewer A's remaining nit is recorded as debt TD-027, which blocks P3: a
+  whole-line value that starts with a quote ends at the closing quote, so
+  `sanitize_text` can leave a trailing `sid=` value.
+- Both reviewers state that ADR-0008 with clarifications C0–C26 can be frozen.
+
 <!-- final-verdicts -->
 - **Reviewer A final outcome:** APPROVE — AO-P2-001 round 3 (`ea7be5b`)
 - **Reviewer B final outcome:** APPROVE_WITH_NOTES — AO-P2-001 round 2 (`ea7be5b`), notes 15 and 16 applied before merge
+- **Reviewer A final outcome:** APPROVE — AO-P2-003..005 and AO-P2-008 implementation, AO-P2-006 round 3 (`af8f58d`)
+- **Reviewer B final outcome:** APPROVE — AO-P2-003..005 and AO-P2-008 implementation, AO-P2-006 round 3 (`af8f58d`)

@@ -1,0 +1,43 @@
+task_id: AO-P2-008
+title: Fix the AO-P2-006 implementation-review findings
+phase: P2
+owner: w-p-protocol
+reviewers:
+  independent: [reviewer-a, reviewer-b]
+  specialist: [security]
+depends_on: [AO-P2-005]
+blocks: []
+objective: >
+  Fix every accepted finding of the AO-P2-006 adversarial implementation
+  review (R-A-P2-006-01..07, 10, 11; R-B-P2-006-02, 04, 06, 08, 09, 11, 12)
+  and implement ADR-0008 amendments C14-C26, so that both reviewers approve
+  and the contract can be frozen.
+inputs:
+  frozen_contracts: []
+  adrs: [docs/adr/0008-universal-event-protocol.md, docs/adr/0005-phase-1-foundation-contract.md]
+  assumptions: []
+owned_paths:
+  - backend/src/observatory/events
+  - backend/tests/unit/events
+  - backend/tests/fixtures/events
+  - docs/contracts/event-protocol-v1.schema.json
+  - backend/src/observatory/core/logging.py
+  - backend/tests/unit/test_logging.py
+read_only_paths: [backend/src/observatory/core/telemetry.py, docs/adr, backend/pyproject.toml]
+hotspots: []
+allocated_ids: {assumptions: [], debt: []}
+out_of_scope: [contract design changes beyond C14-C26, governance scripts]
+acceptance_criteria:
+  - {id: AC1, statement: "C18/C19: a value is already redacted only when exactly [REDACTED]; partially masked or quoted values are masked whole, in observatory.events and core.logging; no 4-character window of a synthetic secret survives sanitize_text or scrub_text", verified_by: backend/tests/unit}
+  - {id: AC2, statement: "C20 CLI coverage is implemented linearly; 64 KiB whitespace-free option inputs stay within a scaling bound (time at 64 KiB / time at 16 KiB < 6)", verified_by: backend/tests/unit/events}
+  - {id: AC3, statement: "C21 stripped-form scan, C22 acceptance paths (model_validate_json and model_validate_strings raise; envelope strict whatever strict= says), C23 private recorded rules with a negative test, C24 import-time Unicode assertion", verified_by: backend/tests/unit/events}
+  - {id: AC4, statement: "C14 and C15 pinned by tests; C16 currency list with XAF, XCD, XCG, XOF and XPF; the informative schema accepts extension events, with a test", verified_by: backend/tests/unit/events}
+  - {id: AC5, statement: "the R-B-P2-006-06 surviving mutants are killed; payload models re-exported per section 17; core.logging exposes normalize_key publicly; the reference trace has consistent dependency completion order and terminates the coordinator; the projection strips the provider prefix only at Id positions", verified_by: backend/tests/unit/events}
+testing:
+  level_1: cd backend && .venv/bin/ruff check . && .venv/bin/ruff format --check . && .venv/bin/mypy && .venv/bin/lint-imports
+  level_2: cd backend && .venv/bin/pytest tests/unit -q && .venv/bin/bandit -q -r src
+  adversarial_cases: [reviewer probes revA-006/probes and revB-derive mutants]
+security_notes: synthetic secrets only, built by concatenation; the existing log redaction suite must keep passing.
+failure_mode: anything that cannot be fixed within C14-C26 is escalated to the coordinator.
+rollback: revert the squash commit.
+budget: {max_agent_turns: 80, escalate_if: a finding needs a contract change outside C14-C26}

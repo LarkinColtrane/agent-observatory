@@ -1,0 +1,229 @@
+{
+  "_synthetic": true,
+  "source": "synthetic orchestrator webhooks",
+  "deliveries": [
+    {
+      "delivery_id": "dlv-001",
+      "received_at": "2026-03-02T10:00:06.100+01:00",
+      "headers": {
+        "x-synthetic-signature": "synthetic-signature-0001"
+      },
+      "attempt": 1,
+      "event": {
+        "id": "evt-001",
+        "type": "agent.started",
+        "occurred_at": "2026-03-02T10:00:05+01:00",
+        "run": "sess-1",
+        "actor": "coordinator",
+        "agent": {
+          "name": "backend",
+          "role": "Backend",
+          "parent": "coordinator",
+          "email": "backend@synthetic.invalid"
+        }
+      }
+    },
+    {
+      "delivery_id": "dlv-002",
+      "received_at": "2026-03-02T10:00:06.200+01:00",
+      "headers": {
+        "x-synthetic-signature": "synthetic-signature-0002"
+      },
+      "attempt": 1,
+      "event": {
+        "id": "evt-002",
+        "type": "agent.started",
+        "occurred_at": "2026-03-02T10:00:05.5+01:00",
+        "run": "sess-1",
+        "actor": "coordinator",
+        "agent": {
+          "name": "security",
+          "role": "Security Reviewer",
+          "parent": "coordinator"
+        }
+      }
+    },
+    {
+      "delivery_id": "dlv-003",
+      "received_at": "2026-03-02T10:00:07.000+01:00",
+      "headers": {
+        "x-synthetic-signature": "synthetic-signature-0003"
+      },
+      "attempt": 1,
+      "event": {
+        "id": "evt-003",
+        "type": "task.created",
+        "occurred_at": "2026-03-02T10:00:06+01:00",
+        "run": "sess-1",
+        "actor": "coordinator",
+        "task": {
+          "id": "task-api",
+          "title": "Build the orders API",
+          "priority": "high",
+          "description": "Create CRUD endpoints for orders.",
+          "estimate_hours": 3
+        }
+      }
+    },
+    {
+      "delivery_id": "dlv-004",
+      "received_at": "2026-03-02T10:00:08.000+01:00",
+      "headers": {
+        "x-synthetic-signature": "synthetic-signature-0004"
+      },
+      "attempt": 1,
+      "event": {
+        "id": "evt-004",
+        "type": "task.created",
+        "occurred_at": "2026-03-02T10:00:07+01:00",
+        "run": "sess-1",
+        "actor": "coordinator",
+        "task": {
+          "id": "task-review",
+          "title": "Security review (password=abc)",
+          "depends_on": [
+            "task-api"
+          ],
+          "priority": "normal"
+        }
+      }
+    },
+    {
+      "delivery_id": "dlv-005",
+      "received_at": "2026-03-02T10:00:09.000+01:00",
+      "headers": {
+        "x-synthetic-signature": "synthetic-signature-0005"
+      },
+      "attempt": 1,
+      "event": {
+        "id": "evt-005",
+        "type": "task.assigned",
+        "occurred_at": "2026-03-02T10:00:08+01:00",
+        "run": "sess-1",
+        "actor": "coordinator",
+        "task": {
+          "id": "task-api"
+        },
+        "assignee": "backend"
+      }
+    },
+    {
+      "delivery_id": "dlv-006",
+      "received_at": "2026-03-02T10:00:58.000+01:00",
+      "headers": {
+        "x-synthetic-signature": "synthetic-signature-0006"
+      },
+      "attempt": 1,
+      "event": {
+        "id": "evt-006",
+        "type": "task.status",
+        "occurred_at": "2026-03-02T10:00:57+01:00",
+        "run": "sess-1",
+        "actor": "backend",
+        "task": {
+          "id": "task-api"
+        },
+        "status": "IN_PROGRESS"
+      }
+    },
+    {
+      "delivery_id": "dlv-007",
+      "received_at": "2026-03-02T10:20:01.000+01:00",
+      "headers": {
+        "x-synthetic-signature": "synthetic-signature-0007"
+      },
+      "attempt": 1,
+      "event": {
+        "id": "evt-007",
+        "type": "task.assigned",
+        "occurred_at": "2026-03-02T10:20:00+01:00",
+        "run": "sess-1",
+        "actor": "coordinator",
+        "task": {
+          "id": "task-review"
+        },
+        "assignee": "security"
+      }
+    },
+    {
+      "delivery_id": "dlv-008",
+      "received_at": "2026-03-02T10:25:01.000+01:00",
+      "headers": {
+        "x-synthetic-signature": "synthetic-signature-0008"
+      },
+      "attempt": 1,
+      "event": {
+        "id": "evt-008",
+        "type": "review.submitted",
+        "occurred_at": "2026-03-02T10:25:00+01:00",
+        "run": "sess-1",
+        "actor": "security",
+        "review": {
+          "id": "rev-1",
+          "verdict": "APPROVED",
+          "task": "task-api",
+          "findings": 0,
+          "blocking": 0,
+          "comment": "Looks good to me."
+        }
+      }
+    },
+    {
+      "delivery_id": "dlv-009",
+      "received_at": "2026-03-02T10:26:01.000+01:00",
+      "headers": {
+        "x-synthetic-signature": "synthetic-signature-0009"
+      },
+      "attempt": 1,
+      "event": {
+        "id": "evt-009",
+        "type": "task.status",
+        "occurred_at": "2026-03-02T10:26:00+01:00",
+        "run": "sess-1",
+        "actor": "backend",
+        "task": {
+          "id": "task-api"
+        },
+        "status": "DONE"
+      }
+    },
+    {
+      "delivery_id": "dlv-010",
+      "received_at": "2026-03-02T10:27:01.000+01:00",
+      "headers": {
+        "x-synthetic-signature": "synthetic-signature-0010"
+      },
+      "attempt": 1,
+      "event": {
+        "id": "evt-010",
+        "type": "agent.finished",
+        "occurred_at": "2026-03-02T10:27:00+01:00",
+        "run": "sess-1",
+        "actor": "backend",
+        "agent": {
+          "name": "backend"
+        },
+        "reason": "completed"
+      }
+    },
+    {
+      "delivery_id": "dlv-011",
+      "received_at": "2026-03-02T10:31:00.000+01:00",
+      "headers": {
+        "x-synthetic-signature": "synthetic-signature-0011"
+      },
+      "attempt": 2,
+      "event": {
+        "id": "evt-005",
+        "type": "task.assigned",
+        "occurred_at": "2026-03-02T10:00:08+01:00",
+        "run": "sess-1",
+        "actor": "coordinator",
+        "task": {
+          "id": "task-api"
+        },
+        "assignee": "backend"
+      }
+    }
+  ]
+}

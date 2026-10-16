@@ -834,3 +834,43 @@ def test_unraisablehook_edge_cases(json_logging: None, capsys: pytest.CaptureFix
 def test_unraisablehook_is_installed(make_settings: SettingsFactory) -> None:
     configure_logging(make_settings())
     assert sys.unraisablehook is not sys.__unraisablehook__
+
+
+# --- ADR-0008 C18: only an exact "[REDACTED]" is already redacted (R-A-P2-006-01) ------------------
+
+_C18_SECRET = "hun" + "ter2" + "Xy9Q" + "zz"
+_C18_CASES = [
+    "password=" + REDACTED + _C18_SECRET,
+    "password='" + REDACTED + _C18_SECRET + "'",
+    'token: "' + REDACTED + " " + _C18_SECRET + '"',
+    "api_key=" + REDACTED + "/" + _C18_SECRET + " tail",
+    "Authorization: " + REDACTED + "%" + _C18_SECRET,
+    "Cookie: " + REDACTED + "; sid=" + _C18_SECRET,
+]
+
+
+@pytest.mark.parametrize("text", _C18_CASES)
+def test_a_value_that_only_starts_with_redacted_is_masked_whole(text: str) -> None:
+    for out in (mask_key_values(text), scrub_text(text)):
+        assert not {_C18_SECRET[i : i + 4] for i in range(len(_C18_SECRET) - 3)} & {
+            out[i : i + 4] for i in range(len(out) - 3)
+        }, out
+        assert scrub_text(out) == out  # still idempotent
+
+
+@pytest.mark.parametrize(
+    "text",
+    ["password=" + REDACTED, "password='" + REDACTED + "'", "token: " + REDACTED + ", x", "auth=[x]"],
+)
+def test_an_exact_redacted_value_is_left_alone(text: str) -> None:
+    once = scrub_text(text)
+    assert scrub_text(once) == once
+    if REDACTED in text:
+        assert once == text
+
+
+def test_normalize_key_is_public() -> None:
+    from observatory.core.logging import _normalize_key, normalize_key  # noqa: PLC0415
+
+    assert normalize_key("Api-Key") == normalize_key("api_key") == "apikey"
+    assert _normalize_key is normalize_key
