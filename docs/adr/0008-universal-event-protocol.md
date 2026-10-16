@@ -1,6 +1,6 @@
 # ADR-0008: Universal agent event protocol v1
 
-- Status: accepted (contract `event-protocol` v1.0.0, approved; frozen at the end of P2 per ADR-0003 §3)
+- Status: accepted — frozen at tag `contract-event-protocol-v1.0.0` (contract `event-protocol` v1.0.0, ADR-0003 §3)
 - Date: 2026-10-12
 - Deciders: Coordinator (proposed); Reviewer A and Reviewer B (sign-off)
 - Components: C1 (owner), C2, C3, C4, C5, C6 (consumers)

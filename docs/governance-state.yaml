@@ -111,9 +111,9 @@ contracts:
     review_record: docs/reviews/phase-2-contract-review.md
     path: docs/adr/0008-universal-event-protocol.md
     version: 1.0.0
-    status: approved                    # AO-P2-002; one implementer builds against it until the freeze (P2 plan)
+    status: frozen                      # after the AO-P2-006 adversarial implementation review (ADR-0003 §3)
     reviewed_by: [reviewer-a, reviewer-b]
-    tag: null                           # frozen at the end of P2 (ADR-0003 §3), freeze scope in docs/phases/P2-plan.md
+    tag: contract-event-protocol-v1.0.0 # annotated (5d44cbe) -> 8dd7160 (PR #11), created by release-tags; freeze scope in docs/phases/P2-plan.md
     not_before_phase: P2
   - id: adapter-interface
     path: null
