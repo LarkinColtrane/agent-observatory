@@ -13,6 +13,7 @@ from observatory.events import (
     Event,
     EventRejection,
     EventTime,
+    RecordedEvent,
     RejectCode,
     Scope,
     Source,
@@ -99,13 +100,12 @@ def test_constructor_refuses_foreign_types() -> None:
     assert _code(info.value) is RejectCode.TOO_DEEP
 
 
-class _Event(Event):
-    pass
-
-
-def test_subclasses_cannot_be_validated() -> None:
-    with pytest.raises(ValidationError):
-        _Event.model_validate(tree())
+def test_event_and_recorded_event_cannot_be_subclassed() -> None:
+    """R-A-P2-006-15: a subclass could re-define validation or smuggle fields under recorded rules."""
+    with pytest.raises(TypeError, match="cannot be subclassed"):
+        type("Derived", (Event,), {"__module__": __name__})
+    with pytest.raises(TypeError, match="cannot be subclassed"):
+        type("Smuggler", (RecordedEvent,), {"__module__": __name__, "__annotations__": {"smuggled": Event}})
 
 
 def _forgeries() -> dict[str, Event]:
@@ -140,10 +140,8 @@ def _forgeries() -> dict[str, Event]:
 @pytest.mark.parametrize("function", PURE)
 def test_pure_functions_refuse_subclasses_and_forgeries(function: str) -> None:
     call = PURE[function]
-    subclass = _Event.model_construct(**build().__dict__)
-    subclass._stamp = build()._stamp
     with pytest.raises(TypeError):
-        call(subclass)
+        call(build().scope)  # type: ignore[arg-type]
     with pytest.raises(TypeError):
         call(tree())  # type: ignore[arg-type]
     for name, forged in _forgeries().items():

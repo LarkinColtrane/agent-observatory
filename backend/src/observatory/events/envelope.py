@@ -37,6 +37,7 @@ from pydantic import (
     SerializeAsAny,
     StringConstraints,
     ValidationError,
+    ValidationInfo,
     model_validator,
 )
 from pydantic_core import ErrorDetails
@@ -87,6 +88,7 @@ from observatory.events.tree import (
     Shape,
     canonical_text,
     format_pointer,
+    inspect_tree,
     known_prefix,
     model_shape,
     pointer_order,
@@ -205,6 +207,12 @@ def _recorded_version() -> int | None:
     return None
 
 
+def _refuse_json_mode(info: ValidationInfo, name: str) -> None:
+    """C22: JSON-mode validation bypasses the bounded parser on any route (TypeAdapter, enclosing models)."""
+    if info.mode == "json":
+        raise TypeError(f"JSON-mode validation of {name} is refused; use observatory.events.parse_event")
+
+
 class Event(BaseModel):
     """One emitted event (§2). Every instance has passed checks 9-15."""
 
@@ -224,10 +232,15 @@ class Event(BaseModel):
 
     @model_validator(mode="wrap")
     @classmethod
-    def _protocol_checks(cls, data: Any, handler: ModelWrapValidatorHandler[Event]) -> Event:
+    def _protocol_checks(
+        cls, data: Any, handler: ModelWrapValidatorHandler[Event], info: ValidationInfo
+    ) -> Event:
+        _refuse_json_mode(info, "Event")
         recorded = _recorded_version()
         rules = rules_for(current_rules_version() if recorded is None else recorded)
         tree = to_tree(data)
+        if not inspect_tree(tree).safe_integers:  # check 7 on every integer, extensions included
+            raise EventRejection(RejectCode.INTEGER_OUT_OF_RANGE, "", _DROP)
         if type(tree) is not dict:
             raise EventRejection(RejectCode.NOT_AN_OBJECT, "", _DROP)
         payload_model = _payload_model(tree)
@@ -271,6 +284,10 @@ class Event(BaseModel):
         raise TypeError(
             "Event.model_validate_strings is not an acceptance path; use observatory.events.parse_event"
         )
+
+    def __init_subclass__(cls, **kwargs: Any) -> None:
+        """Refused: only an exact ``Event`` is a protocol event (R-A-P2-006-15)."""
+        raise TypeError("Event cannot be subclassed")
 
     def __eq__(self, other: object) -> bool:
         """Equal fields; the private rules stamp is not part of the event (C4)."""
@@ -554,8 +571,9 @@ class RecordedEvent(BaseModel):
     @model_validator(mode="wrap")
     @classmethod
     def _under_recorded_rules(
-        cls, data: Any, handler: ModelWrapValidatorHandler[RecordedEvent]
+        cls, data: Any, handler: ModelWrapValidatorHandler[RecordedEvent], info: ValidationInfo
     ) -> RecordedEvent:
+        _refuse_json_mode(info, "RecordedEvent")
         if type(data) is not dict:
             raise ValueError("a recorded event is a mapping")
         version = data.get("secret_rules_version")
@@ -575,6 +593,10 @@ class RecordedEvent(BaseModel):
         """Strict validation whatever ``strict`` says (C22)."""
         del strict
         return super().model_validate(obj, strict=True, **kwargs)
+
+    def __init_subclass__(cls, **kwargs: Any) -> None:
+        """Refused: a subclass could validate extra events under the recorded rules (R-A-P2-006-15)."""
+        raise TypeError("RecordedEvent cannot be subclassed")
 
     @classmethod
     def model_validate_json(cls, *args: Any, **kwargs: Any) -> NoReturn:

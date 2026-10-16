@@ -109,3 +109,29 @@ new_debt: []
 specialist_review_needed: [security]
 rollback: Revert the AO-P2-008 commits on p2/008-review-fixes; 918050c is unchanged.
 next_steps: Focused re-review of this diff by Reviewers A and B, then the freeze tag.
+part_2:
+  branch: p2/008b
+  base: 549ab02
+  summary: >
+    Round-2 fixes from AO-P2-006 Reviewer A.
+    R-A-P2-006-13: Event and RecordedEvent refuse JSON-mode validation on every
+    route (TypeAdapter.validate_json, enclosing models, RecordedEvent JSON) with a
+    TypeError naming parse_event. TypeAdapter.validate_strings runs in Python mode,
+    so it is not refused; any string coercion is still rejected by the exactness
+    check. Event construction runs check 7 (safe integer range) on every integer,
+    extensions included, with drop disposition.
+    R-A-P2-006-14 / C18: in the events text tier, Cookie and Authorization values
+    run to the end of the line and count as redacted only if they are exactly
+    [REDACTED].
+    R-A-P2-006-15: Event and RecordedEvent cannot be subclassed (__init_subclass__
+    raises TypeError).
+  tests:
+    - "test_review_fixes.py: test_json_mode_validation_is_refused_on_every_route, test_construction_runs_check_7_on_every_integer, test_every_accepted_event_round_trips_through_parse_event (minimal, trace, golden), test_whole_line_keys_mask_the_rest_of_the_line (4 cases incl. Cookie with a JWT and sid)"
+    - "test_exact_types.py: test_event_and_recorded_event_cannot_be_subclassed"
+    - "probesA6/p13.py: JSON routes refused, ext int 2**60 refused, Evil(RecordedEvent) raises TypeError at class creation"
+  checks:
+    - {command: "cd backend && .venv/bin/ruff check . && .venv/bin/ruff format --check . && .venv/bin/mypy && .venv/bin/lint-imports", ran: true, result: pass}
+    - {command: "cd backend && .venv/bin/pytest tests/unit -q && .venv/bin/bandit -q -r src", ran: true, result: pass, evidence: "1319 passed; bandit exit 0"}
+    - {command: "cd backend && .venv/bin/pytest --cov=observatory.events --cov-branch tests/unit/events", ran: true, result: pass, evidence: "726 passed; 99% (1404 statements, 384 branches)"}
+    - {command: "python -I scripts/check-governance.py", ran: true, result: pass}
+    - {command: "python -I scripts/check-artifacts.py", ran: true, result: fail, evidence: "pre-existing on base 549ab02, independent of this change: the reopened AO-P2-008 claim in governance-state does not list core/logging.py, test_logging.py and the schema json, which the task file owns; a coordinator fix"}

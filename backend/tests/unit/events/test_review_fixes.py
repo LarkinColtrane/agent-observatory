@@ -14,7 +14,7 @@ from contextvars import copy_context
 from typing import Any
 
 import pytest
-from pydantic import TypeAdapter, ValidationError
+from pydantic import BaseModel, TypeAdapter, ValidationError
 
 from observatory.events import (
     Accepted,
@@ -23,6 +23,7 @@ from observatory.events import (
     RecordedEvent,
     RejectCode,
     WarningCode,
+    canonical_json,
     content_fingerprint,
     load_recorded,
     parse_event,
@@ -34,7 +35,9 @@ from observatory.events import text as text_module
 from observatory.events.envelope import event_tree
 from observatory.events.text import RULES_V1, check_unicode_data
 from observatory.events.tree import canonical_text
-from tests.unit.events.factory import DELETE, accept, raw, reject, tree
+from tests.fixtures.events.reference import TRACE
+from tests.unit.events.factory import DELETE, JWT, accept, raw, reject, tree
+from tests.unit.events.test_golden import GOLDEN
 
 R = "[" + "REDACTED" + "]"
 PW = "hun" + "ter2" + "Xy9Q" + "zz"
@@ -346,3 +349,78 @@ def test_array_indices_compare_numerically() -> None:
 
 def test_parse_event_is_the_json_acceptance_path() -> None:
     assert isinstance(parse_event(raw(tree())), Accepted)
+
+
+# --- round 2: R-A-P2-006-13, -14 ------------------------------------------------------------------
+
+
+def test_json_mode_validation_is_refused_on_every_route() -> None:
+    body = raw(tree())
+
+    class Wrapper(BaseModel):
+        event: Event
+
+    record = {
+        "event": tree(),
+        "fingerprint": accept(tree()).fingerprint,
+        "ingested_at": "2026-03-01T10:00:02Z",
+        "ingest_seq": 0,
+        "secret_rules_version": 1,
+    }
+    for call in (
+        lambda: TypeAdapter(Event).validate_json(body),
+        lambda: Wrapper.model_validate_json(b'{"event": ' + body + b"}"),
+        lambda: TypeAdapter(RecordedEvent).validate_json(json.dumps(record)),
+    ):
+        with pytest.raises(TypeError, match="JSON-mode validation"):
+            call()
+    # TypeAdapter.validate_strings runs in Python mode; string coercion is still refused (C22).
+    with pytest.raises(ValidationError, match="schema_violation"):
+        TypeAdapter(Event).validate_strings(tree(("source.seq", "0")))
+
+
+def test_construction_runs_check_7_on_every_integer() -> None:
+    for big in (2**60, -(2**53), 2**53):
+        data = tree(("extensions", {"x-acme": {"n": big, "list": [1]}}))
+        with pytest.raises(ValidationError, match="integer_out_of_range"):
+            Event.model_validate(data)
+        nested = tree(("extensions", {"x-acme": {"deep": {"list": [1, big]}}}))
+        with pytest.raises(ValidationError, match="integer_out_of_range"):
+            Event.model_validate(nested)
+    assert accept(tree(("extensions", {"x-acme": {"n": 2**53 - 1, "m": -(2**53) + 1}})))
+
+
+def test_every_accepted_event_round_trips_through_parse_event() -> None:
+    """§13: canonical_json of an accepted Event is always accepted again by parse_event, byte for byte."""
+    events = [accept(tree()).event]
+    events += [line_event for line_event in _trace_events()]
+    events += [accept(data).event for data, *_ in GOLDEN.values()]
+    for event in events:
+        body = canonical_json(event)
+        again = parse_event(body)
+        assert isinstance(again, Accepted), again
+        assert canonical_json(again.event) == body
+
+
+def _trace_events() -> list[Event]:
+    parsed = [parse_event(line) for line in TRACE.read_bytes().splitlines()]
+    return [p.event for p in parsed if isinstance(p, Accepted)]
+
+
+SID = "q7Zp" + "Lm3x" + "Rt9w"
+LINE_VALUES = [
+    "Cookie: " + JWT + " sid=" + SID,
+    "Cookie: " + R + " sid=" + SID,
+    "Authorization: Bearer " + "q" * 20 + ", sid=" + SID,
+    "authorization: " + R + "; sid=" + SID,
+]
+
+
+@pytest.mark.parametrize("text", LINE_VALUES)
+def test_whole_line_keys_mask_the_rest_of_the_line(text: str) -> None:
+    """R-A-P2-006-14 / C18: Cookie and Authorization values run to the end of the line."""
+    assert reject(_message(text)).code is RejectCode.SECRET_DETECTED
+    out = sanitize_text(text)
+    _assert_no_residue(out, SID)
+    assert isinstance(validate_event(_message(out)), Accepted)
+    assert sanitize_text("Cookie: " + R) == "Cookie: " + R

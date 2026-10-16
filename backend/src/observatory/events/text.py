@@ -154,12 +154,12 @@ def _secret_name(name: str) -> bool:
 def _value_end(text: str, start: int, *, whole_line: bool) -> int:
     """End of the value that starts at ``start`` (C19 for quotes; ``[REDACTED]x`` is one value, C18)."""
     first = text[start : start + 1]
-    if first in _QUOTED_REST:
+    if whole_line and first not in _QUOTED_REST:
+        match = _LINE_VALUE.match(text, start)  # Cookie, Authorization: the rest of the line (C18)
+    elif first in _QUOTED_REST:
         match = _QUOTED_REST[first].match(text, start + 1)
     elif text.startswith(REDACTED, start):
         match = _REDACTED_TAIL.match(text, start + len(REDACTED))
-    elif whole_line:
-        match = _LINE_VALUE.match(text, start)
     else:
         match = _PLAIN_VALUE.match(text, start)
     return match.end() if match is not None else start

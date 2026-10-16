@@ -132,11 +132,8 @@ contracts:
 # AO-P2-001 released with PR #9 (ce93f44); AO-P2-002 released with its PR. AO-P2-003..005 run in sequence under one owner,
 # so each claim is recorded when the previous one is released.
 # AO-P2-003..005 (w-p-protocol) completed in sequence and were released at integration (p2/003-integration).
-# AO-P2-008 part 1 released at integration (9eead67); part 2 (R-A-P2-006-13..15) reopened under the same task.
-claims:
-  - task: AO-P2-008
-    owner: w-p-protocol
-    paths: [backend/src/observatory/events, backend/tests/unit/events, backend/tests/fixtures/events, docs/contracts/event-protocol-v1.schema.json, backend/src/observatory/core/logging.py, backend/tests/unit/test_logging.py]
+# AO-P2-008 (w-p-protocol) parts 1 and 2 released at integration.
+claims: []
 
 # Annotated tags to be created by .github/workflows/release-tags.yml on main
 # (ADR-0005 §7). Entries stay as the audit record; existing tags are never moved.
