@@ -104,14 +104,14 @@ def test_reobserved_events_are_redeliveries(trace: list[Event]) -> None:
         event = rng.choice(trace)
         tree = _tree(event)
         changes = rng.sample(["observed_at", "adapter", "seq"], rng.randint(1, 3))
+        if event.source.seq is None and changes == ["seq"]:
+            changes = ["observed_at"]  # a stream-less event has no seq to change
         if "observed_at" in changes:
             tree["time"]["observed_at"] = _iso(rng)
         if "adapter" in changes:
             tree["source"]["adapter"]["version"] = f"1.{rng.randint(1, 99)}.0"
-        if "seq" in changes:
-            tree["source"]["seq"] = (
-                event.source.seq + rng.randint(1, 1000) if event.source.seq is not None else 0
-            )
+        if "seq" in changes and event.source.seq is not None:  # a stream-less event has no slot
+            tree["source"]["seq"] = event.source.seq + rng.randint(1, 1000)
         assert classify_duplicate(event, _rebuild(tree)) is DuplicateKind.REDELIVERY
 
 

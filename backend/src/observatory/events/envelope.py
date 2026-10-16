@@ -2,8 +2,16 @@
 
 Constructing an ``Event`` in any way runs checks 9-15 in order; the first
 failure raises ``EventRejection`` (wrapped by Pydantic in a ``ValidationError``).
+Validation is strict whatever ``strict=`` a caller passes, and the JSON and
+string entry points raise: JSON is accepted only by ``parse_event`` (C22).
+
 Each instance privately carries a stamp of the rules version it was validated
-under, bound to its canonical bytes (C4); the stamp is not part of the event.
+under, bound to its canonical bytes by an HMAC under a per-process key (C4).
+An older rules version can be named only while ``RecordedEvent`` (so
+``load_recorded``) validates a stored row (C23). The stamp is not part of the
+event, and an ``Event`` object is valid only in the process that validated it:
+events cross process, cache and queue boundaries only as canonical bytes,
+re-read with ``parse_event`` or ``load_recorded`` (C24).
 """
 
 from __future__ import annotations
@@ -12,20 +20,22 @@ import hashlib
 import hmac
 import secrets
 import typing
-from collections.abc import Iterator
+from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass
 from functools import cache
 from types import MappingProxyType
-from typing import Annotated, Any, Final, Self
+from typing import Annotated, Any, Final, NoReturn, Self
 
 from pydantic import (
     AfterValidator,
     BaseModel,
+    Field,
     ModelWrapValidatorHandler,
     PrivateAttr,
     SerializeAsAny,
+    StringConstraints,
     ValidationError,
     model_validator,
 )
@@ -35,6 +45,8 @@ from observatory.core.telemetry import Money, UsageMetrics
 from observatory.events.codes import Disposition, EventRejection, RejectCode
 from observatory.events.ids import (
     ID_PATTERN,
+    MAX_SAFE_INT,
+    Code,
     EventUuid,
     Id,
     ProviderRef,
@@ -43,6 +55,7 @@ from observatory.events.ids import (
     Timestamp,
     Version,
     WorkspaceId,
+    canonical_timestamp,
     derive_event_id,
     matches,
     uuid_version,
@@ -70,6 +83,7 @@ from observatory.events.tree import (
     MAX_BYTES,
     MAX_DEPTH,
     Pointer,
+    Segment,
     Shape,
     canonical_text,
     format_pointer,
@@ -159,8 +173,10 @@ class _Stamp:
 
 
 _STAMP_KEY: Final = secrets.token_bytes(32)
-#: Set only by the recorded-event loader; ``None`` means the current rules version.
-_RECORDED_RULES: ContextVar[int | None] = ContextVar("observatory_recorded_rules", default=None)
+#: Proves that the recorded-rules override was set by this module's ``RecordedEvent`` validator (C23).
+_LOAD_TOKEN: Final = object()
+#: ``(token, version)`` while a stored row is validated; anything else means the current rules version.
+_RECORDED_RULES: ContextVar[object] = ContextVar("observatory_recorded_rules", default=None)
 
 
 def _mac(version: int, recorded: bool, canonical: bytes) -> bytes:
@@ -169,15 +185,24 @@ def _mac(version: int, recorded: bool, canonical: bytes) -> bytes:
 
 
 @contextmanager
-def recorded_rules(version: int | None) -> Iterator[None]:
-    """Validate events under a recorded rules version (``None``: current). Loader use only."""
+def _recorded_rules(version: int | None) -> Iterator[None]:
+    """Validate under a recorded rules version (``None``: current). Private to this module (C23)."""
     if version is not None:
         rules_for(version)  # unknown -> ValueError
-    token = _RECORDED_RULES.set(version)
+    token = _RECORDED_RULES.set((_LOAD_TOKEN, version) if version is not None else None)
     try:
         yield
     finally:
         _RECORDED_RULES.reset(token)
+
+
+def _recorded_version() -> int | None:
+    """The recorded rules version, honoured only when this module set it (C23)."""
+    override = _RECORDED_RULES.get()
+    if type(override) is tuple and len(override) == 2 and override[0] is _LOAD_TOKEN:
+        version: int = override[1]
+        return version
+    return None
 
 
 class Event(BaseModel):
@@ -200,7 +225,7 @@ class Event(BaseModel):
     @model_validator(mode="wrap")
     @classmethod
     def _protocol_checks(cls, data: Any, handler: ModelWrapValidatorHandler[Event]) -> Event:
-        recorded = _RECORDED_RULES.get()
+        recorded = _recorded_version()
         rules = rules_for(current_rules_version() if recorded is None else recorded)
         tree = to_tree(data)
         if type(tree) is not dict:
@@ -215,6 +240,7 @@ class Event(BaseModel):
         if payload_model is None:
             raise EventRejection(RejectCode.UNKNOWN_EVENT_TYPE, "/event_type", _QUARANTINE)
         event = _check_schema(tree, shape, payload_model, handler)
+        _check_exact(tree, event, shape)
         _check_references(event)
         canonical = canonical_text(to_tree(event)).encode("utf-8")
         if len(canonical) > MAX_BYTES:
@@ -223,6 +249,28 @@ class Event(BaseModel):
             rules.version, recorded is not None, _mac(rules.version, recorded is not None, canonical)
         )
         return event
+
+    @classmethod
+    def model_validate(cls, obj: Any, *, strict: bool | None = None, **kwargs: Any) -> Self:
+        """Strict validation whatever ``strict`` says (C22)."""
+        del strict
+        return super().model_validate(obj, strict=True, **kwargs)
+
+    @classmethod
+    def model_validate_json(cls, *args: Any, **kwargs: Any) -> NoReturn:
+        """Refused: JSON bypasses the bounded parser; use ``parse_event`` (C22)."""
+        del args, kwargs
+        raise TypeError(
+            "Event.model_validate_json is not an acceptance path; use observatory.events.parse_event"
+        )
+
+    @classmethod
+    def model_validate_strings(cls, *args: Any, **kwargs: Any) -> NoReturn:
+        """Refused: string coercion is never accepted; use ``parse_event`` (C22)."""
+        del args, kwargs
+        raise TypeError(
+            "Event.model_validate_strings is not an acceptance path; use observatory.events.parse_event"
+        )
 
     def __eq__(self, other: object) -> bool:
         """Equal fields; the private rules stamp is not part of the event (C4)."""
@@ -390,6 +438,43 @@ def _check_schema(
     return event
 
 
+def _first_difference(given: object, built: object, path: Pointer) -> Pointer | None:
+    """The first path where ``built`` differs from ``given`` in type or value (no coercion, C22)."""
+    if type(given) is not type(built):
+        return path
+    children: list[tuple[Segment, object, object]]
+    if type(given) is dict:
+        given_map, built_map = typing.cast(dict[str, object], given), typing.cast(dict[str, object], built)
+        if given_map.keys() != built_map.keys():
+            return path
+        children = [(key, value, built_map[key]) for key, value in given_map.items()]
+    elif type(given) is list:
+        given_list, built_list = typing.cast(list[object], given), typing.cast(list[object], built)
+        if len(given_list) != len(built_list):
+            return path
+        children = [(index, *pair) for index, pair in enumerate(zip(given_list, built_list, strict=True))]
+    else:
+        return None if given == built else path
+    for key, value, other in children:
+        found = _first_difference(value, other, (*path, key))
+        if found is not None:
+            return found
+    return None
+
+
+def _check_exact(tree: dict[str, Any], event: Event, shape: Shape) -> None:
+    """Check 13 (C22): the event holds exactly the given values; only timestamp fractions are normalised."""
+    expected = dict(tree)
+    time = tree.get("time")
+    if type(time) is dict:
+        expected["time"] = {k: canonical_timestamp(v) for k, v in typing.cast(dict[str, str], time).items()}
+    difference = _first_difference(expected, to_tree(event), ())
+    if difference is not None:
+        raise EventRejection(
+            RejectCode.SCHEMA_VIOLATION, format_pointer(known_prefix(difference, shape)), _QUARANTINE
+        )
+
+
 def _check_references(event: Event) -> None:
     """Check 14: derived event ids, v8 only when derived, self references (§§4, 8)."""
     found: list[Pointer] = []
@@ -431,7 +516,76 @@ def revalidate(event: object) -> Event:
     if not stamp.recorded and stamp.version != current_rules_version():
         raise ValueError("event stamp names a rules version other than the current one")
     try:
-        with recorded_rules(stamp.version if stamp.recorded else None):
+        with _recorded_rules(stamp.version if stamp.recorded else None):
             return Event.model_validate(tree)
     except ValidationError:
         raise ValueError("event failed re-validation") from None
+
+
+# --- recorded events (§14, C23) ---------------------------------------------------------------
+
+_RECORD_TYPES: Final[Mapping[str, type]] = MappingProxyType(
+    {"fingerprint": str, "ingested_at": str, "ingest_seq": int, "secret_rules_version": int, "policy_id": str}
+)
+
+
+def _fingerprint(event: Event) -> str:
+    return (
+        "sha256:" + hashlib.sha256(canonical_text(event_tree(revalidate(event))).encode("utf-8")).hexdigest()
+    )
+
+
+class RecordedEvent(BaseModel):
+    """An accepted event as ingestion stores it, validated under its recorded rules version.
+
+    Validating one is the only way to name an older rules version (C23); ``load_recorded``
+    calls it on rows read from the event store, never on incoming events.
+    """
+
+    model_config = STRICT
+
+    event: Event
+    fingerprint: Annotated[str, StringConstraints(pattern=r"^sha256:[0-9a-f]{64}$")]
+    ingested_at: Timestamp
+    ingest_seq: Annotated[int, Field(ge=0, le=MAX_SAFE_INT)]
+    secret_rules_version: Annotated[int, Field(ge=1)]
+    policy_id: Code | None = None
+
+    @model_validator(mode="wrap")
+    @classmethod
+    def _under_recorded_rules(
+        cls, data: Any, handler: ModelWrapValidatorHandler[RecordedEvent]
+    ) -> RecordedEvent:
+        if type(data) is not dict:
+            raise ValueError("a recorded event is a mapping")
+        version = data.get("secret_rules_version")
+        rules_for(version)  # an unknown version is a ValueError
+        if any(name in data and type(data[name]) is not kind for name, kind in _RECORD_TYPES.items()):
+            raise ValueError("recorded event fields have exact types")  # no coercion (C22)
+        if type(data.get("event")) is Event:
+            data = {**data, "event": event_tree(data["event"])}
+        with _recorded_rules(typing.cast(int, version)):
+            record = handler(data)
+        if _fingerprint(record.event) != record.fingerprint:
+            raise ValueError("fingerprint does not match the event")
+        return record
+
+    @classmethod
+    def model_validate(cls, obj: Any, *, strict: bool | None = None, **kwargs: Any) -> Self:
+        """Strict validation whatever ``strict`` says (C22)."""
+        del strict
+        return super().model_validate(obj, strict=True, **kwargs)
+
+    @classmethod
+    def model_validate_json(cls, *args: Any, **kwargs: Any) -> NoReturn:
+        """Refused: use ``load_recorded`` on a decoded row."""
+        del args, kwargs
+        raise TypeError("RecordedEvent.model_validate_json is refused; use observatory.events.load_recorded")
+
+    @classmethod
+    def model_validate_strings(cls, *args: Any, **kwargs: Any) -> NoReturn:
+        """Refused: use ``load_recorded`` on a decoded row."""
+        del args, kwargs
+        raise TypeError(
+            "RecordedEvent.model_validate_strings is refused; use observatory.events.load_recorded"
+        )

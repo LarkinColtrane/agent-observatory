@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 import observatory.events
+from observatory.events.taxonomy import PAYLOADS
 
 PACKAGE = Path(observatory.events.__file__).parent
 ALLOWED_THIRD_PARTY = {"pydantic", "pydantic_core"}
@@ -50,5 +51,9 @@ def test_public_api_matches_section_17() -> None:
         "Accepted", "Rejected",
     }  # fmt: skip
     assert expected <= set(observatory.events.__all__)
+    # R-B-P2-006-08: one payload model per §8 type, re-exported.
+    for event_type, model in PAYLOADS["1.0"].items():
+        assert getattr(observatory.events, model.__name__) is model, event_type
+        assert model.__name__ in observatory.events.__all__
     assert observatory.events.SPEC_VERSION == "1.0"
     assert frozenset({"1.0"}) == observatory.events.SUPPORTED_VERSIONS

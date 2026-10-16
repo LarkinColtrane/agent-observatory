@@ -2,7 +2,7 @@ task_id: AO-P2-003
 from: w-p-protocol
 to: coordinator
 status: complete
-commit: 79a80dd
+commit: 79a80dd  # pre-squash branch commit; squashed into 918050c on p2/003-integration
 branch: p2/003-protocol-core
 summary: >
   observatory.events implements ADR-0008 sections 2-7 and 10-17 with

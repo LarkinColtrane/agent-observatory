@@ -25,10 +25,14 @@ from observatory.events import (
     SECRET_RULES_VERSION,
     Accepted,
     Event,
+    canonical_json,
     derive_event_id,
     sanitize_text,
     validate_event,
 )
+from observatory.events.envelope import event_shape
+from observatory.events.taxonomy import PAYLOADS
+from observatory.events.tree import Shape, child_shape
 
 FIXTURES: Final = Path(__file__).parent
 WORKSPACE: Final = "synthetic-ws"
@@ -489,28 +493,30 @@ def _other_step(step: dict[str, Any], qid: Any) -> tuple[str, dict[str, Any]]:
 
 
 def projection(event: Event) -> dict[str, Any]:
-    """``(event_type, scope, payload)``, with the ``<provider>:`` qualification of entity ids removed.
+    """``(event_type, scope, payload)``, with the ``<provider>:`` qualification removed at Id positions only.
 
     §4 qualifies every native entity id by its provider, so the same agent or
-    task has a different id in each shape. The comparison strips that prefix;
-    ids, times and provenance are deliberately left out.
+    task has a different id in each shape (C13). Only values at Id positions
+    of the schema are unqualified; free text is compared as is. Ids, times and
+    provenance are deliberately left out.
     """
-    tree = json.loads(event.model_dump_json(exclude_none=True))
+    tree = json.loads(canonical_json(event))
+    shape = event_shape(PAYLOADS["1.0"].get(event.event_type))
     prefix = event.source.provider + ":"
 
-    def strip(value: Any) -> Any:
+    def strip(value: Any, position: Shape) -> Any:
         if isinstance(value, str):
-            return value.removeprefix(prefix)
+            return value.removeprefix(prefix) if position.kind == "id" else value
         if isinstance(value, list):
-            return [strip(v) for v in value]
+            return [strip(v, child_shape(position, i)[0]) for i, v in enumerate(value)]
         if isinstance(value, dict):
-            return {k: strip(v) for k, v in value.items()}
+            return {k: strip(v, child_shape(position, k)[0]) for k, v in value.items()}
         return value
 
     return {
         "event_type": tree["event_type"],
-        "scope": strip(tree["scope"]),
-        "payload": strip(tree["payload"]),
+        "scope": strip(tree["scope"], shape.fields["scope"]),
+        "payload": strip(tree["payload"], shape.fields["payload"]),
     }
 
 

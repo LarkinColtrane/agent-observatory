@@ -1,9 +1,11 @@
-"""Pinned ISO 4217 currency allowlist for usage costs (ADR-0008 §9).
+"""Pinned ISO 4217 currency allowlist for usage costs (ADR-0008 §9, C16).
 
-Source: ISO 4217 List One (SIX), active codes as of 2026-01-01 excluding
-X-prefixed codes; checked against the datasets/currency-codes mirror
-(codes-all.csv, fetched 2026-10-12) because six-group.com is blocked by the
-egress proxy. Changing this list is a minor version (§9).
+Source: ISO 4217 List One (SIX), active codes as of 2026-01-01; checked against
+the datasets/currency-codes mirror (codes-all.csv, fetched 2026-10-12) because
+six-group.com is blocked by the egress proxy. Excluded (C16) are only the
+non-currency X codes: XAG, XAU, XBA, XBB, XBC, XBD, XDR, XPD, XPT, XSU, XTS,
+XUA and XXX. The X-prefixed national and regional currencies XAF, XCD, XCG,
+XOF and XPF are included. Changing this list is a minor version (§9).
 """
 
 from __future__ import annotations
@@ -24,7 +26,7 @@ ISO_4217_CURRENCIES: Final = frozenset({
     "PGK", "PHP", "PKR", "PLN", "PYG", "QAR", "RON", "RSD", "RUB", "RWF", "SAR", "SBD",
     "SCR", "SDG", "SEK", "SGD", "SHP", "SLE", "SOS", "SRD", "SSP", "STN", "SVC", "SYP",
     "SZL", "THB", "TJS", "TMT", "TND", "TOP", "TRY", "TTD", "TWD", "TZS", "UAH", "UGX",
-    "USD", "USN", "UYI", "UYU", "UYW", "UZS", "VED", "VES", "VND", "VUV", "WST", "YER",
-    "ZAR", "ZMW", "ZWG",
+    "USD", "USN", "UYI", "UYU", "UYW", "UZS", "VED", "VES", "VND", "VUV", "WST", "XAF",
+    "XCD", "XCG", "XOF", "XPF", "YER", "ZAR", "ZMW", "ZWG",
 })
 # fmt: on

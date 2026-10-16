@@ -2,7 +2,7 @@ task_id: AO-P2-005
 from: w-p-protocol
 to: coordinator
 status: complete
-commit: b88d93e
+commit: b88d93e  # pre-squash branch commit; squashed into 918050c on p2/003-integration
 branch: p2/005-fixtures
 summary: >
   Three SYNTHETIC provider shapes (A transcript JSONL, B orchestrator webhooks,

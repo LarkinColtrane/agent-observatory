@@ -54,9 +54,10 @@ def json_schema() -> dict[str, Any]:
         }
         for name, model in sorted(payloads.items())
     ]
+    extension_pattern = f"^{EXTENSION_TYPE.pattern}$"
     dispatch.append(
         {
-            "if": {"properties": {"event_type": {"pattern": f"^{EXTENSION_TYPE.pattern}$"}}},
+            "if": {"properties": {"event_type": {"pattern": extension_pattern}}},
             "then": {"properties": {"payload": {"$ref": "#/$defs/ExtensionPayload"}}},
         }
     )
@@ -66,7 +67,8 @@ def json_schema() -> dict[str, Any]:
         "title": f"Agent Observatory event protocol {SPEC_VERSION} (informative)",
         "description": "Generated from observatory.events; the Python validator is normative (ADR-0008 §17).",
         "$ref": "#/$defs/Event",
-        "properties": {"event_type": {"enum": sorted(payloads)}},
+        # A core type or an extension type (C26): every valid extension event must pass.
+        "properties": {"event_type": {"anyOf": [{"enum": sorted(payloads)}, {"pattern": extension_pattern}]}},
         "allOf": dispatch,
         "$defs": defs,
     }

@@ -320,7 +320,7 @@ TEXT_NEGATIVES = [
     "author: alice",
     "--verbose yes",
     "mysql -p",
-    "echo mysql -phello",
+    "echo mysqlx -phello",
     "mysqlx -phello",
     "curl -u alice https://h",
     "set color blue",
@@ -362,8 +362,11 @@ def test_mysql_rule_skips_sudo_and_env_options(command: str) -> None:
     assert sanitize_text(command).endswith("-p[REDACTED]")
 
 
-def test_mysql_rule_needs_the_command_word() -> None:
-    for command in ("sudo -u mysql ls -p" + "hunter", "env mysqlsh -p" + "hunter", "ls; mysql -p" + "hunter"):
+def test_mysql_rule_needs_a_mysql_word_anywhere() -> None:
+    """C20: any word naming a mysql tool arms the attached ``-p`` rule, wherever it stands."""
+    for command in ("ls; mysql -p" + "hunter", "sudo -u mysql ls -p" + "hunter", "echo mysql -p" + "hunter"):
+        assert _hit(command), command
+    for command in ("env mysqlsh -p" + "hunter", "pip install -p" + "hunter", "mysql -p"):
         assert not _hit(command), command
 
 
@@ -417,7 +420,7 @@ def test_c1_invalid_id_at_an_id_position_gets_the_text_tier() -> None:
         tree(("event_type", "file.changed"), ("payload", {"path": "a b/--token x", "change": "x"}))
     )
     assert rejected.code is RejectCode.SCHEMA_VIOLATION  # a valid RelPath: text tier skipped
-    bad_path = {"path": "/abs/--token x", "change": "created"}
+    bad_path = {"path": "/abs/x --token y", "change": "created"}
     assert (
         reject(tree(("event_type", "file.changed"), ("payload", bad_path))).code is RejectCode.SECRET_DETECTED
     )
@@ -520,6 +523,15 @@ def test_sanitize_is_idempotent_and_a_scan_fixed_point() -> None:
 SIZE = 64 * 1024
 WORST_CASES = {
     "nfkc expansion": chr(0xFDFA) * (SIZE // 3),
+    "-u= words": "-u=" * (SIZE // 3),  # R-A-P2-006-02: whitespace-free option tokens
+    "--a= words": "--a=" * (SIZE // 4),
+    "--user= words": "--user=" * (SIZE // 7),
+    "--password= words": "--password=" * (SIZE // 11),
+    "quote runs": "password='" * (SIZE // 10),
+    "kv spaces": "password" + " " * (SIZE - 20) + "=x",
+    "a=a=": "a=" * (SIZE // 2),
+    "pwd keys": "x_pwd = " * (SIZE // 8),
+    "redacted tails": "password=[REDACTED]" * (SIZE // 19),
     "pem unterminated": "-----BEGIN " + "PRIVATE KEY-----" + "-----END " * (SIZE // 9),
     "pem headers": ("-----BEGIN " + "A" * 39) * (SIZE // 50),
     "sk prefixes": "sk-" * (SIZE // 3),
@@ -545,6 +557,26 @@ def test_detectors_stay_linear_on_64_kib(name: str) -> None:
     RULES.string_hit(text, text_tier=True)
     RULES.sanitize(text)
     assert time.perf_counter() - start < 1.0
+
+
+def _best_time(text: str, runs: int = 3) -> float:
+    best = float("inf")
+    for _ in range(runs):
+        start = time.perf_counter()
+        RULES.string_hit(text, text_tier=True)
+        RULES.sanitize(text)
+        best = min(best, time.perf_counter() - start)
+    return best
+
+
+@pytest.mark.parametrize(
+    "name", ["-u= words", "--a= words", "--user= words", "quote runs", "a=a=", "sk prefixes"]
+)
+def test_detector_time_scales_linearly(name: str) -> None:
+    """C20: time at 64 KiB / time at 16 KiB stays below 6 (quadratic growth would give about 16)."""
+    text = WORST_CASES[name]
+    small, large = _best_time(text[: SIZE // 4]), _best_time(text[:SIZE])
+    assert large / max(small, 1e-4) < 6, (small, large)
 
 
 def test_whole_event_scan_of_64_kib_stays_fast() -> None:

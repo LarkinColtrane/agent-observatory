@@ -11,9 +11,9 @@ import typing
 from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import timedelta
-from typing import Annotated, Any, Final, Self
+from typing import Any, Final
 
-from pydantic import BaseModel, Field, StringConstraints, ValidationError, model_validator
+from pydantic import ValidationError
 
 from observatory.events.codec import (
     UTF8_BOM,
@@ -24,7 +24,7 @@ from observatory.events.codec import (
     sha256_hex,
 )
 from observatory.events.codes import Disposition, EventRejection, RejectCode, WarningCode
-from observatory.events.envelope import Adapter, Event, event_tree, recorded_rules
+from observatory.events.envelope import Adapter, Event, RecordedEvent
 from observatory.events.ids import (
     ID_PATTERN,
     MAX_SAFE_INT,
@@ -32,15 +32,12 @@ from observatory.events.ids import (
     SPEC_VERSION_PATTERN,
     VERSION_PATTERN,
     WORKSPACE_ID_PATTERN,
-    Code,
-    Timestamp,
     matches,
     parse_timestamp,
     uuid_version,
 )
-from observatory.events.payloads import EXTENSION_TYPE, STRICT
+from observatory.events.payloads import EXTENSION_TYPE
 from observatory.events.taxonomy import PAYLOADS
-from observatory.events.text import rules_for
 from observatory.events.tree import MAX_BYTES, MAX_DEPTH, canonical_text, inspect_tree
 
 _SKEW: Final = timedelta(minutes=5)
@@ -140,8 +137,7 @@ def warnings_for(event: Event) -> tuple[WarningCode, ...]:
 def _finish(tree: dict[str, Any], raw: bytes) -> Accepted | Rejected:
     """Checks 9-15 under the current rules: construct the event, or record why not."""
     try:
-        with recorded_rules(None):  # accepting a new event never names another rules version
-            event = Event.model_validate(tree)
+        event = Event.model_validate(tree)  # always the current rules: only RecordedEvent names another
     except ValidationError as exc:
         errors = exc.errors()
         cause = errors[0].get("ctx", {}).get("error") if len(errors) == 1 else None
@@ -212,32 +208,6 @@ def validate_event(data: object) -> Accepted | Rejected:  # noqa: PLR0911 (one r
 
 
 # --- recorded events (§14) -------------------------------------------------------------
-
-
-class RecordedEvent(BaseModel):
-    """An accepted event as ingestion stores it; validated under its recorded rules version."""
-
-    model_config = STRICT
-
-    event: Event
-    fingerprint: Annotated[str, StringConstraints(pattern=r"^sha256:[0-9a-f]{64}$")]
-    ingested_at: Timestamp
-    ingest_seq: Annotated[int, Field(ge=0, le=MAX_SAFE_INT)]
-    secret_rules_version: Annotated[int, Field(ge=1)]
-    policy_id: Code | None = None
-
-    @model_validator(mode="wrap")
-    @classmethod
-    def _under_recorded_rules(cls, data: Any, handler: Any) -> Self:
-        version = data.get("secret_rules_version") if isinstance(data, dict) else None
-        rules_for(version)  # an unknown version is a ValueError
-        if type(data.get("event")) is Event:
-            data = {**data, "event": event_tree(data["event"])}
-        with recorded_rules(version):
-            record = typing.cast(Self, handler(data))
-        if fingerprint(record.event) != record.fingerprint:
-            raise ValueError("fingerprint does not match the event")
-        return record
 
 
 def load_recorded(record: Mapping[str, object]) -> RecordedEvent:

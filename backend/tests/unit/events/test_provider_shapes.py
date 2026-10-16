@@ -15,7 +15,15 @@ from typing import Any
 
 import pytest
 
-from observatory.events import DuplicateKind, Event, classify_duplicate, stream_key
+from observatory.events import (
+    Accepted,
+    DuplicateKind,
+    Event,
+    canonical_json,
+    classify_duplicate,
+    stream_key,
+    validate_event,
+)
 from observatory.events.ids import uuid_version
 from tests.fixtures.events import mappers
 from tests.fixtures.events.mappers import (
@@ -201,3 +209,18 @@ def test_command_pipeline() -> None:
     cut_secret = command_text("x" * 1000 + " " + SK)
     assert SK[:20] not in cut_secret
     assert len(cut_secret) <= 1024
+
+
+def test_projection_unqualifies_only_id_positions(shapes: dict[str, list[Event]]) -> None:
+    """R-B-P2-006-12(a): free text that happens to start with the provider prefix is kept as is."""
+    spawn = next(e for e in shapes["A"] if e.event_type == "agent.spawned")
+    tree = json.loads(canonical_json(spawn))
+    tree["payload"]["role"] = PROVIDER_A + ":role text"
+    tree["event_id"] = "0190a8f2-6b1c-7d3e-8f4a-0000000000aa"
+    del tree["source"]["provider_event_id"]
+    result = validate_event(tree)
+    assert isinstance(result, Accepted)
+    projected = projection(result.event)
+    assert projected["payload"]["role"] == PROVIDER_A + ":role text"
+    assert projected["payload"]["agent_id"] == "backend"
+    assert projected["scope"]["agent_id"] == "coordinator"

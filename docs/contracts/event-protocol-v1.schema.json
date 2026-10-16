@@ -1216,23 +1216,30 @@
   "description": "Generated from observatory.events; the Python validator is normative (ADR-0008 \u00a717).",
   "properties": {
     "event_type": {
-      "enum": [
-        "agent.spawned",
-        "agent.terminated",
-        "error.reported",
-        "file.changed",
-        "message.sent",
-        "review.verdict_recorded",
-        "session.ended",
-        "session.started",
-        "task.assigned",
-        "task.created",
-        "task.dependency_added",
-        "task.status_changed",
-        "test.run_completed",
-        "tool.call_finished",
-        "tool.call_started",
-        "usage.recorded"
+      "anyOf": [
+        {
+          "enum": [
+            "agent.spawned",
+            "agent.terminated",
+            "error.reported",
+            "file.changed",
+            "message.sent",
+            "review.verdict_recorded",
+            "session.ended",
+            "session.started",
+            "task.assigned",
+            "task.created",
+            "task.dependency_added",
+            "task.status_changed",
+            "test.run_completed",
+            "tool.call_finished",
+            "tool.call_started",
+            "usage.recorded"
+          ]
+        },
+        {
+          "pattern": "^(?P<vendor>x-[a-z][a-z0-9-]{1,30})\\.[a-z][a-z0-9_]{0,63}$"
+        }
       ]
     }
   },

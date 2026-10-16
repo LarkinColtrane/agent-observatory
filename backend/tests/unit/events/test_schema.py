@@ -10,13 +10,16 @@ and review the diff::
 from __future__ import annotations
 
 import json
+import re
 import runpy
 from pathlib import Path
+from typing import Any
 
 import pytest
 
 from observatory.events.schema import _without_nulls, json_schema, render
 from observatory.events.taxonomy import PAYLOADS
+from tests.unit.events.test_golden import GOLDEN as GOLDEN_EVENTS
 
 GOLDEN = Path(__file__).resolve().parents[4] / "docs" / "contracts" / "event-protocol-v1.schema.json"
 REGENERATE = (
@@ -39,7 +42,9 @@ def test_schema_is_deterministic_and_well_formed() -> None:
 
 def test_schema_covers_every_type_and_never_allows_null() -> None:
     schema = json_schema()
-    assert schema["properties"]["event_type"]["enum"] == sorted(PAYLOADS["1.0"])
+    core, extension = schema["properties"]["event_type"]["anyOf"]
+    assert core["enum"] == sorted(PAYLOADS["1.0"])
+    assert re.fullmatch(extension["pattern"].strip("^$"), "x-golden.checkpoint")  # C26
     refs = {rule["then"]["properties"]["payload"]["$ref"] for rule in schema["allOf"]}
     assert refs == {f"#/$defs/{m.__name__}" for m in PAYLOADS["1.0"].values()} | {"#/$defs/ExtensionPayload"}
     text = json.dumps(schema)
@@ -61,3 +66,23 @@ def test_null_branches_are_removed() -> None:
     }
     two = {"anyOf": [{"type": "string"}, {"type": "integer"}, {"type": "null"}]}
     assert _without_nulls(two) == {"anyOf": [{"type": "string"}, {"type": "integer"}]}
+
+
+def _admits(constraint: dict[str, Any], value: str) -> bool:
+    """A minimal reading of the schema's ``event_type`` constraint (no jsonschema dependency)."""
+    if "anyOf" in constraint:
+        return any(_admits(option, value) for option in constraint["anyOf"])
+    if "enum" in constraint:
+        return value in constraint["enum"]
+    return re.search(constraint["pattern"], value) is not None
+
+
+def test_schema_admits_every_valid_event_type() -> None:
+    """R-B-P2-006-02: the top-level constraint must not exclude extension events (C26)."""
+    constraint = json_schema()["properties"]["event_type"]
+    golden_extension = GOLDEN_EVENTS["extension event"][0]["event_type"]
+    assert _admits(constraint, golden_extension)
+    for event_type in [*PAYLOADS["1.0"], "x-acme.build_step", "x-sessionco.thing"]:
+        assert _admits(constraint, event_type), event_type
+    for event_type in ("session.resumed", "x-Acme.thing", "acme.thing"):
+        assert not _admits(constraint, event_type), event_type

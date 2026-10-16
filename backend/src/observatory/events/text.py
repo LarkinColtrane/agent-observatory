@@ -1,20 +1,22 @@
 """Safe text, RelPath and the versioned secret detectors (ADR-0008 §10).
 
 The credential patterns and the CLI rules are owned here, independently of
-``core.logging``; only ADR-0005's key rules and key/value scrub are reused.
-Every pattern is possessive or bounded, so each scan is linear in its input.
+``core.logging``; only ADR-0005's key rules (``is_secret_key``, ``normalize_key``)
+are reused. The text tier tokenises each string once and every pattern is
+possessive or bounded, so each scan is linear in its input. Importing this
+module fails if the Unicode data differs from the pinned version (C24).
 """
 
 from __future__ import annotations
 
 import re
 import unicodedata
-from collections.abc import Callable, Iterator, Mapping
+from collections.abc import Callable, Iterable, Iterator, Mapping
 from dataclasses import dataclass
 from types import MappingProxyType
 from typing import Final
 
-from observatory.core.logging import REDACTED, is_secret_key, mask_key_values
+from observatory.core.logging import REDACTED, is_secret_key, normalize_key
 
 # --- forbidden characters (§10.2): a fixed, enumerated list ----------------------
 
@@ -79,26 +81,7 @@ _CREDENTIAL_PATTERNS: Final = (
     rf"{_B}eyJ[A-Za-z0-9_-]{{8,}}+\.eyJ[A-Za-z0-9_-]{{8,}}+\.[A-Za-z0-9_-]*+",
 )
 _URL_TOKEN: Final = re.compile(r"://\S++")
-
 _BEARER: Final = re.compile(r"(?i:bearer|basic)\s++[A-Za-z0-9._~+/-]{16,}+=*+")
-_OPTION: Final = re.compile(rf"{_B}--?+(?P<name>[A-Za-z0-9][A-Za-z0-9_.-]*+)(?:=|\s++)(?=(?P<value>\S++))")
-_USER: Final = re.compile(rf"{_B}(?:-u\s*+|--user(?:=|\s++))(?=(?P<value>\S++))")
-_SET: Final = re.compile(rf"(?i){_B}set\s++(?P<name>[A-Za-z0-9_.-]++)\s++(?=(?P<value>\S++))")
-_MYSQL_PASSWORD: Final = re.compile(r"(?<!\S)-p(?=(?P<value>\S++))")
-_WORD: Final = re.compile(r"\S++")
-_ASSIGNMENT: Final = re.compile(r"[A-Za-z_][A-Za-z0-9_]*+=")
-_MYSQL_COMMANDS: Final = frozenset({"mysql", "mysqldump", "mysqladmin", "mariadb", "mariadb-dump"})
-#: Options of the wrappers skipped before the command word that take a separate argument (C6).
-_WRAPPER_ARG_OPTIONS: Final[Mapping[str, frozenset[str]]] = MappingProxyType(
-    {
-        "sudo": frozenset(
-            {"-C", "-D", "-g", "-h", "-p", "-R", "-r", "-T", "-t", "-U", "-u"}
-            | {"--close-from", "--chdir", "--group", "--host", "--prompt", "--chroot", "--role"}
-            | {"--command-timeout", "--type", "--other-user", "--user"}
-        ),
-        "env": frozenset({"-a", "-C", "-P", "-S", "-u", "--argv0", "--chdir", "--split-string", "--unset"}),
-    }
-)
 
 
 def _sub(pattern: str) -> Masker:
@@ -106,8 +89,8 @@ def _sub(pattern: str) -> Masker:
     return lambda text: regex.sub(REDACTED, text)
 
 
-def _redact_spans(text: str, spans: Iterator[tuple[int, int]]) -> str:
-    """Replace each span (in order of start; overlaps merge) with one ``[REDACTED]``."""
+def _redact_spans(text: str, spans: Iterable[Span]) -> str:
+    """Replace each span (sorted by start; overlaps merge) with one ``[REDACTED]``."""
     out: list[str] = []
     pos = 0
     for start, end in spans:
@@ -117,16 +100,6 @@ def _redact_spans(text: str, spans: Iterator[tuple[int, int]]) -> str:
         pos = max(pos, end)
     out.append(text[pos:])
     return "".join(out)
-
-
-def _value_masker(regex: re.Pattern[str], accept: Callable[[re.Match[str]], bool]) -> Masker:
-    def mask(text: str) -> str:
-        spans = (
-            m.span("value") for m in regex.finditer(text) if not m["value"].startswith(REDACTED) and accept(m)
-        )
-        return _redact_spans(text, spans)
-
-    return mask
 
 
 def _mask_pem(text: str) -> str:
@@ -149,39 +122,122 @@ def _mask_bearer(text: str) -> str:
     return _BEARER.sub(REDACTED, text)
 
 
-def _command_word(text: str) -> str | None:
-    """Basename of the first word after ``sudo``/``env`` (with their options) and ``NAME=value`` (C6)."""
-    words = (m.group() for m in _WORD.finditer(text))
-    word = next(words, None)
-    while word is not None:
-        if _ASSIGNMENT.match(word):
-            word = next(words, None)
+# --- text tier (C18-C20): one key/value scan and one tokenisation per string ---------------------
+
+Span = tuple[int, int]
+Word = tuple[int, int, str]
+
+#: A key at a token start, any horizontal whitespace, then ``=>``, ``=`` or ``:`` (C20).
+_KV_KEY: Final = re.compile(r"""(?<![A-Za-z0-9_.-])(?P<key>[A-Za-z0-9_.-]++)['"]?[ \t]*+(?:=>|[:=])[ \t]*+""")
+_DELIMITED: Final = r"""[^\s&,;'")\]}>]"""
+_PLAIN_VALUE: Final = re.compile(rf"(?i:(?:bearer|basic|token|digest)[ \t]{{1,3}})?{_DELIMITED}++")
+_REDACTED_TAIL: Final = re.compile(rf"{_DELIMITED}*+")
+_LINE_VALUE: Final = re.compile(r"[^\n]*+")
+#: After an opening quote: up to the matching unescaped quote, or to the end of the string (C19).
+_QUOTED_REST: Final[Mapping[str, re.Pattern[str]]] = MappingProxyType(
+    {quote: re.compile(rf"(?:[^{quote}\\]|\\[\s\S])*+{quote}?") for quote in ("'", '"')}
+)
+_LINE_VALUE_KEYS: Final = ("cookie", "authorization")
+#: A shell-like word: quoted parts run to their closing quote; ``;``, ``|`` and ``&`` separate words.
+_WORD: Final = re.compile(r"""(?:'(?:[^'\\]|\\[\s\S])*+'?|"(?:[^"\\]|\\[\s\S])*+"?|[^\s'";|&]++)++""")
+_OPTION_HEAD: Final = re.compile(r"--?+(?P<name>[A-Za-z0-9][A-Za-z0-9_.-]*+)(?P<eq>=?)")
+_MYSQL_COMMANDS: Final = frozenset({"mysql", "mysqldump", "mysqladmin", "mariadb", "mariadb-dump"})
+#: The only values that count as already redacted (C18).
+_EXACT_REDACTED: Final = frozenset({REDACTED, f"'{REDACTED}'", f'"{REDACTED}"'})
+
+
+def _secret_name(name: str) -> bool:
+    """Secret-named under ADR-0005, or a normalised name ending in ``pwd`` (C20)."""
+    return is_secret_key(name) or normalize_key(name).endswith("pwd")
+
+
+def _value_end(text: str, start: int, *, whole_line: bool) -> int:
+    """End of the value that starts at ``start`` (C19 for quotes; ``[REDACTED]x`` is one value, C18)."""
+    first = text[start : start + 1]
+    if first in _QUOTED_REST:
+        match = _QUOTED_REST[first].match(text, start + 1)
+    elif text.startswith(REDACTED, start):
+        match = _REDACTED_TAIL.match(text, start + len(REDACTED))
+    elif whole_line:
+        match = _LINE_VALUE.match(text, start)
+    else:
+        match = _PLAIN_VALUE.match(text, start)
+    return match.end() if match is not None else start
+
+
+def _key_value_spans(text: str) -> Iterator[Span]:
+    """Values of secret-named keys written as text: ``password=x``, ``'api_key': 'x'``, ``MYSQL_PWD => x``."""
+    pos = 0
+    for match in _KV_KEY.finditer(text):
+        if match.start() < pos or not _secret_name(match["key"]):
             continue
-        base = word.rsplit("/", 1)[-1]
-        takes_argument = _WRAPPER_ARG_OPTIONS.get(base)
-        if takes_argument is None:
-            return base
-        word = next(words, None)
-        while word is not None and word.startswith("-"):
-            end_of_options = word == "--"
-            if word in takes_argument:
-                next(words, None)
-            word = next(words, None)
-            if end_of_options:
-                break
-    return None
+        whole_line = any(k in normalize_key(match["key"]) for k in _LINE_VALUE_KEYS)
+        end = _value_end(text, match.end(), whole_line=whole_line)
+        if end > match.end() and text[match.end() : end].rstrip() not in _EXACT_REDACTED:
+            pos = end
+            yield match.end(), end
 
 
-_mask_mysql_value = _value_masker(_MYSQL_PASSWORD, lambda _m: True)
+def _option_spans(start: int, end: int, word: str, following: Word | None, *, redis: bool) -> Iterator[Span]:
+    """``--name=value`` / ``--name value`` (one or two dashes): secret names, ``--user``, redis ``--pass``."""
+    head = _OPTION_HEAD.match(word)
+    if head is None:
+        return
+    if head.end() < len(word):
+        if not head["eq"]:
+            return
+        value, text = (start + head.end(), end), word[head.end() :]
+    elif following is not None and not head["eq"]:
+        value, text = (following[0], following[1]), following[2]
+    else:
+        return
+    name = head["name"]
+    if _secret_name(name) or (name == "user" and ":" in text) or (redis and name == "pass"):
+        yield value
 
 
-def _mask_mysql_password(text: str) -> str:
-    return _mask_mysql_value(text) if _command_word(text) in _MYSQL_COMMANDS else text
+def _ends_user_cluster(word: str) -> bool:
+    """``-u`` alone or ending a short-option cluster (``-Eu``), so the next word is its value (C20)."""
+    return word.startswith("-") and word.endswith("u") and word[1:].isascii() and word[1:].isalpha()
 
 
-_mask_options = _value_masker(_OPTION, lambda m: is_secret_key(m["name"]))
-_mask_user_password = _value_masker(_USER, lambda m: ":" in m["value"])
-_mask_set = _value_masker(_SET, lambda m: is_secret_key(m["name"]))
+def _word_spans(text: str) -> Iterator[Span]:
+    """The CLI rules of §10.3 and C20 over one tokenisation of ``text``."""
+    words: list[Word] = [(m.start(), m.end(), m.group()) for m in _WORD.finditer(text)]
+    names = {word.rsplit("/", 1)[-1] for _, _, word in words}
+    mysql, sshpass, redis = bool(names & _MYSQL_COMMANDS), "sshpass" in names, "redis-cli" in names
+    for index, (start, end, word) in enumerate(words):
+        if word[0] != "-" and not (len(word) == 3 and word.lower() == "set"):
+            continue  # every rule starts at an option word or at "set"
+        following = words[index + 1] if index + 1 < len(words) else None
+        yield from _option_spans(start, end, word, following, redis=redis)
+        if following is not None:
+            next_span = (following[0], following[1])
+            if _ends_user_cluster(word) and ":" in following[2]:
+                yield next_span  # -u user:pass, also a cluster ending in u: -Eu user:pass
+            if (sshpass and word == "-p") or (redis and word == "-a"):
+                yield next_span
+            if word in ("-passin", "-passout") and following[2].startswith("pass:"):
+                yield following[0] + len("pass:"), following[1]
+            if word.lower() == "set" and _secret_name(following[2]) and index + 2 < len(words):
+                yield words[index + 2][0], words[index + 2][1]
+        attached = word[2:]
+        if attached and (
+            (word.startswith("-u") and ":" in attached)
+            or (word.startswith("-p") and (mysql or sshpass))
+            or (word.startswith("-a") and redis)
+        ):
+            yield start + 2, end
+
+
+def _mask_text_tier(text: str) -> str:
+    """Key/value and CLI values (C18-C20); a value that is exactly ``[REDACTED]`` is left alone."""
+    spans = sorted(
+        span
+        for span in (*_key_value_spans(text), *_word_spans(text))
+        if span[1] > span[0] and text[span[0] : span[1]] not in _EXACT_REDACTED
+    )
+    return _redact_spans(text, spans)
 
 
 @dataclass(frozen=True, slots=True)
@@ -194,17 +250,15 @@ class RuleSet:
     text: tuple[Masker, ...]
 
     def string_hit(self, value: str, *, text_tier: bool) -> bool:
-        """True if ``value`` or its NFKC form hits the credential tier (and the text tier if asked)."""
+        """True if any scanned form of ``value`` hits the credential tier (and the text tier if asked)."""
         maskers = self.credential + self.text if text_tier else self.credential
-        folded = unicodedata.normalize("NFKC", value)
-        forms = (value,) if folded == value else (value, folded)
-        return any(mask(form) != form for form in forms for mask in maskers)
+        return any(mask(form) != form for form in scan_forms(value) for mask in maskers)
 
     def key_hit(self, key: str, *, name_test: bool = True) -> bool:
-        """True if ``key`` hits the credential tier or (with ``name_test``) is secret-named."""
+        """True if ``key`` hits the credential tier or (with ``name_test``) is secret-named in any form."""
         if self.string_hit(key, text_tier=False):
             return True
-        return name_test and (is_secret_key(key) or is_secret_key(unicodedata.normalize("NFKC", key)))
+        return name_test and any(is_secret_key(form) for form in scan_forms(key))
 
     def sanitize(self, text: str) -> str:
         """Replace every match of both tiers with ``[REDACTED]``; the result is a scan fixed point (C5)."""
@@ -214,18 +268,42 @@ class RuleSet:
                 out = mask(out)
             if not self.string_hit(out, text_tier=True):
                 return out
-            out = unicodedata.normalize("NFKC", out)  # a hit only the NFKC form shows
+            out = unicodedata.normalize("NFKC", strip_forbidden(out))  # a hit only another form shows
         return REDACTED
 
 
+def strip_forbidden(value: str) -> str:
+    """C21: the §10.2 characters removed, and TAB and LF folded to a space."""
+    return FORBIDDEN.sub("", value).replace("\t", " ").replace("\n", " ")
+
+
+def scan_forms(value: str) -> tuple[str, ...]:
+    """The forms every check runs on: the string, its NFKC form, its stripped form and that one's NFKC."""
+    stripped = strip_forbidden(value)
+    forms = dict.fromkeys(
+        (value, unicodedata.normalize("NFKC", value), stripped, unicodedata.normalize("NFKC", stripped))
+    )
+    return tuple(forms)
+
+
 _MAX_SANITIZE_ROUNDS: Final = 4
+
+
+def check_unicode_data(actual: str = unicodedata.unidata_version) -> None:
+    """C24: the rules are pinned to one Unicode data version; any other fails closed."""
+    if actual != RULES_V1.unidata_version:
+        raise ImportError(f"observatory.events needs Unicode data {RULES_V1.unidata_version}, found {actual}")
+
 
 RULES_V1: Final = RuleSet(
     version=1,
     unidata_version="15.0.0",  # ADR-0008 C0: the Unicode data of the pinned Python 3.12
     credential=(_mask_pem, *(_sub(p) for p in _CREDENTIAL_PATTERNS), _mask_url_userinfo),
-    text=(_mask_bearer, mask_key_values, _mask_options, _mask_mysql_password, _mask_user_password, _mask_set),
+    text=(_mask_bearer, _mask_text_tier),
 )
+
+
+check_unicode_data()
 
 
 class UnknownRulesVersion(KeyError, ValueError):

@@ -16,7 +16,7 @@ import pytest
 from observatory.events import Accepted, Event, canonical_json, canonical_order, parse_event
 from tests.fixtures.events.reference import DIGEST, TRACE, build_trace, digest_line, q, render
 
-PINNED = "6443d5f78ac0397c46dd5e514c675f8a82bd2dac7253b06563bb74663d96dbd8"
+PINNED = "0ee1ee7ee2a475df98f1e9053bd6b97b67ca16fd9ac2052b4bc5004332fa2e4b"
 AGENTS = {q(a) for a in ("coordinator", "backend", "frontend", "testing", "security")}
 
 
@@ -142,3 +142,27 @@ def _assert_acyclic(graph: dict[str, set[str]]) -> None:
 def test_acyclicity_check_detects_a_cycle() -> None:
     with pytest.raises(AssertionError, match="cycle"):
         _assert_acyclic({"a": {"b"}, "b": {"a"}})
+
+
+def test_trace_is_temporally_consistent(events: list[Event]) -> None:
+    """R-B-P2-006-11: dependants complete after their dependencies, every agent ends, and the
+    trace exercises a stream-less event and the observed_at fallback (no occurred_at)."""
+    created: dict[str, set[str]] = {}
+    completed: dict[str, int] = {}
+    for index, event in enumerate(events):
+        payload = event.payload.model_dump(exclude_none=True)
+        if event.event_type == "task.created":
+            created[payload["task_id"]] = set(payload.get("depends_on", ()))
+        elif event.event_type == "task.dependency_added":
+            created[payload["task_id"]].add(payload["depends_on_task_id"])
+        elif event.event_type == "task.status_changed" and payload["status"] == "completed":
+            completed[payload["task_id"]] = index
+    assert set(completed) == set(created)
+    for task, dependencies in created.items():
+        assert all(completed[d] < completed[task] for d in dependencies), task
+    terminated = [e.payload.model_dump()["agent_id"] for e in events if e.event_type == "agent.terminated"]
+    assert set(terminated) == AGENTS
+    assert terminated[-1] == q("coordinator")
+    assert events[-1].event_type == "agent.terminated"
+    assert any(e.source.stream_id is None for e in events)
+    assert any(e.time.occurred_at is None for e in events)

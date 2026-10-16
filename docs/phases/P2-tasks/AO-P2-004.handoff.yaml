@@ -2,7 +2,7 @@ task_id: AO-P2-004
 from: w-p-protocol
 to: coordinator
 status: complete
-commit: 557ed0d
+commit: 557ed0d  # pre-squash branch commit; squashed into 918050c on p2/003-integration
 branch: p2/004-payloads
 summary: >
   The 16 §8 payload models (closed, strict, frozen, no defaults or nulls) replace

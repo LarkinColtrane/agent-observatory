@@ -53,10 +53,10 @@ class _Trace:
         *,
         caused_by: str | None = None,
         self_report: bool = False,
+        streamed: bool = True,
+        timed: bool = True,
     ) -> None:
         occurred = _START + _STEP * len(self.events)
-        seq = self._seq.get(agent, 0)
-        self._seq[agent] = seq + 1
         scope = {"workspace_id": WORKSPACE, "session_id": q("ref-session-1")}
         if not self_report:
             scope["agent_id"] = q(agent)
@@ -69,19 +69,17 @@ class _Trace:
             "event_id": event_id,
             "event_type": event_type,
             "scope": scope,
-            "time": {
-                "occurred_at": _ts(occurred),
-                "observed_at": _ts(occurred + timedelta(milliseconds=500)),
-            },
-            "source": {
-                "provider": PROVIDER,
-                "adapter": {"name": f"{PROVIDER}-mapper", "version": "1.0.0"},
-                "stream_id": q(f"stream-{agent}"),
-                "seq": seq,
-            },
+            "time": {"observed_at": _ts(occurred + timedelta(milliseconds=500))},
+            "source": {"provider": PROVIDER, "adapter": {"name": f"{PROVIDER}-mapper", "version": "1.0.0"}},
             "causality": causality,
             "payload": payload,
         }
+        if timed:  # otherwise the source gave no time and observed_at orders the event (§6)
+            tree["time"]["occurred_at"] = _ts(occurred)
+        if streamed:
+            seq = self._seq.get(agent, 0)
+            self._seq[agent] = seq + 1
+            tree["source"] |= {"stream_id": q(f"stream-{agent}"), "seq": seq}
         self.events.append(accept(tree))
         self.ids[label] = event_id
 
@@ -237,12 +235,6 @@ def _scenario(t: _Trace) -> None:
         {"path": "web/src/OrdersPage.tsx", "change": "created", "call_id": q("call-f1"), "lines_added": 85},
         caused_by="f1.end",
     )
-    t.add(
-        "ui.done",
-        "frontend",
-        "task.status_changed",
-        {"task_id": q("task-ui"), "status": "completed", "evidence_event_ids": [t.ids["f1.file"]]},
-    )
     # Testing: a failing run, an error, then a handoff to Backend.
     t.add(
         "tests.progress",
@@ -354,16 +346,6 @@ def _scenario(t: _Trace) -> None:
         },
         caused_by="b5.end",
     )
-    t.add(
-        "tests.done",
-        "backend",
-        "task.status_changed",
-        {
-            "task_id": q("task-tests"),
-            "status": "completed",
-            "evidence_event_ids": sorted([t.ids["b5.run"]]),
-        },
-    )
     # Security review: changes requested, fixed, approved.
     t.add(
         "assign.review",
@@ -411,16 +393,6 @@ def _scenario(t: _Trace) -> None:
         caused_by="b6.file",
     )
     t.add(
-        "review.done",
-        "security",
-        "task.status_changed",
-        {
-            "task_id": q("task-review"),
-            "status": "completed",
-            "evidence_event_ids": [t.ids["review.2"]],
-        },
-    )
-    t.add(
         "api.done",
         "backend",
         "task.status_changed",
@@ -428,6 +400,33 @@ def _scenario(t: _Trace) -> None:
             "task_id": q("task-api"),
             "status": "completed",
             "evidence_event_ids": sorted([t.ids["b5.run"], t.ids["b6.file"], t.ids["review.2"]]),
+        },
+    )
+    # The dependants complete only after the task they depend on.
+    t.add(
+        "ui.done",
+        "frontend",
+        "task.status_changed",
+        {"task_id": q("task-ui"), "status": "completed", "evidence_event_ids": [t.ids["f1.file"]]},
+    )
+    t.add(
+        "tests.done",
+        "backend",
+        "task.status_changed",
+        {
+            "task_id": q("task-tests"),
+            "status": "completed",
+            "evidence_event_ids": sorted([t.ids["b5.run"]]),
+        },
+    )
+    t.add(
+        "review.done",
+        "security",
+        "task.status_changed",
+        {
+            "task_id": q("task-review"),
+            "status": "completed",
+            "evidence_event_ids": [t.ids["review.2"]],
         },
     )
     # Usage totals, termination, end.
@@ -445,6 +444,7 @@ def _scenario(t: _Trace) -> None:
     )
     for agent in ("backend", "frontend", "testing", "security"):
         t.add(f"stop.{agent}", agent, "agent.terminated", {"agent_id": q(agent), "reason": "completed"})
+    # Reported by a billing exporter: no stream, no source time (ordered by observed_at, §6).
     t.add(
         "session.total",
         "coordinator",
@@ -460,12 +460,20 @@ def _scenario(t: _Trace) -> None:
             "unit": "session",
             "unit_id": q("ref-session-1"),
         },
+        streamed=False,
+        timed=False,
     )
     t.add(
         "session.end",
         "coordinator",
         "session.ended",
         {"session_id": q("ref-session-1"), "outcome": "completed"},
+    )
+    t.add(
+        "stop.coordinator",
+        "coordinator",
+        "agent.terminated",
+        {"agent_id": q("coordinator"), "reason": "completed"},
     )
 
 

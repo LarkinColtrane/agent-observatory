@@ -738,9 +738,12 @@ def test_smallest_pointer_spans_envelope_and_payload() -> None:
 
 
 def test_currency_allowlist_is_pinned() -> None:
-    assert len(ISO_4217_CURRENCIES) == 159
+    assert len(ISO_4217_CURRENCIES) == 164
     assert {"USD", "EUR", "JPY", "GBP", "CHF", "ZWG", "SLE", "VED"} <= ISO_4217_CURRENCIES
-    assert not {c for c in ISO_4217_CURRENCIES if c.startswith("X")}
+    # C16: X-prefixed national and regional currencies are allowed; non-currency X codes are not.
+    assert {c for c in ISO_4217_CURRENCIES if c.startswith("X")} == {"XAF", "XCD", "XCG", "XOF", "XPF"}
+    non_currency = {"XAG", "XAU", "XBA", "XBB", "XBC", "XBD", "XDR", "XPD", "XPT", "XSU", "XTS", "XUA", "XXX"}
+    assert not non_currency & ISO_4217_CURRENCIES
     assert not {"HRK", "ZWL", "ANG", "SLL", "CUC", "BGN", "BTC", "VEF"} & ISO_4217_CURRENCIES
     assert all(len(c) == 3 and c.isascii() and c.isupper() for c in ISO_4217_CURRENCIES)
 
@@ -781,3 +784,9 @@ def test_extension_types_and_unknown_types() -> None:
     assert reject(event("x-promptco.thing", {"a": 1})).pointer == "/event_type"
     for unknown in ("agent.paused", "session", "tool.call_started.v2", "Session.started"):
         assert reject(event(unknown, {"a": 1})).code is RejectCode.UNKNOWN_EVENT_TYPE
+
+
+@pytest.mark.parametrize("currency", ["XAF", "XCD", "XCG", "XOF", "XPF"])
+def test_regional_x_currencies_are_accepted(currency: str) -> None:
+    usage = {**USAGE, "reported_cost": {"amount": "12.5", "currency": currency}}
+    assert accept(event("usage.recorded", changed("usage.recorded", usage=usage, pricing_ref=DELETE)))

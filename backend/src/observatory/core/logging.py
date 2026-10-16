@@ -73,12 +73,15 @@ SECRET_EXACT_KEYS: Final[frozenset[str]] = frozenset({"auth"})
 request_id_var: ContextVar[str | None] = ContextVar("observatory_request_id", default=None)
 
 
-def _normalize_key(key: str) -> str:
-    # "Api-Key", "api_key", "apiKey" and "APIKEY" all become "apikey".
+def normalize_key(key: str) -> str:
+    """ADR-0005 key normalisation: "Api-Key", "api_key", "apiKey" and "APIKEY" all become "apikey"."""
     return key.lower().replace("-", "").replace("_", "")
 
 
-_NORMALIZED_PARTS: Final = tuple(sorted({_normalize_key(p) for p in SECRET_KEY_PARTS}))
+_normalize_key = normalize_key  # former private name, kept as an alias
+
+
+_NORMALIZED_PARTS: Final = tuple(sorted({normalize_key(p) for p in SECRET_KEY_PARTS}))
 
 # Every pattern below is anchored and possessive, so scrubbing is linear in the
 # input length (no per-position retries, no backtracking).
@@ -99,6 +102,7 @@ _KEY: Final = re.compile(r"""(?<![A-Za-z0-9_.-])(?P<key>[A-Za-z0-9_.-]++)['"]?\s
 # Unbounded: a long token or signature must not leak its tail.
 _VALUE: Final = re.compile(
     r"""'(?:[^'\\\n]|\\.)*+'?|"(?:[^"\\\n]|\\.)*+"?"""
+    r"""|\[REDACTED\][^\s&,;'")\]}>]*+"""
     r"""|(?i:(?:bearer|basic|token|digest)\s{1,3})?[^\s&,;'")\]}>]++"""
 )
 # Header values made of several pairs (Cookie: a=1; sid=x) are redacted to end of line.
@@ -155,7 +159,7 @@ def is_secret_key(key: object) -> bool:
 
 @lru_cache(maxsize=4096)  # log text repeats the same few key names
 def _is_secret_name(name: str) -> bool:
-    normalized = _normalize_key(name)
+    normalized = normalize_key(name)
     return normalized in SECRET_EXACT_KEYS or any(part in normalized for part in _NORMALIZED_PARTS)
 
 
@@ -170,6 +174,14 @@ def mask_url_credentials(text: str) -> str:
     return _URL_TOKEN.sub(_mask_url_token, text)
 
 
+def _already_redacted(value: str, quote: str) -> bool:
+    """True only for a value that is exactly ``[REDACTED]`` (or in its quotes); ``[REDACTED]x`` is not."""
+    inner = value[len(quote) :]
+    if quote and inner.endswith(quote):
+        inner = inner[: -len(quote)]
+    return inner == REDACTED
+
+
 def mask_key_values(text: str) -> str:
     """Replace the value of every secret-named ``key=value`` / ``key: value`` pair in ``text``."""
     out: list[str] = []
@@ -179,12 +191,12 @@ def mask_key_values(text: str) -> str:
         if match.start() < pos or not is_secret_key(match["key"]):
             continue  # inside a value already redacted, or not a secret
         quote = text[start] if text[start : start + 1] in ("'", '"') else ""
-        if text.startswith(REDACTED, start + len(quote)):
-            continue  # already redacted (scrubbing is idempotent)
-        whole_line = not quote and any(k in _normalize_key(match["key"]) for k in _LINE_VALUE_KEYS)
+        whole_line = not quote and any(k in normalize_key(match["key"]) for k in _LINE_VALUE_KEYS)
         value = (_LINE_VALUE if whole_line else _VALUE).match(text, start)
         if value is None:
             continue  # no value (e.g. "password:" at end of line)
+        if _already_redacted(value.group(), quote):
+            continue  # exactly "[REDACTED]": scrubbing is idempotent (ADR-0008 C18)
         out.append(text[pos:start] + quote + REDACTED + quote)
         pos = value.end()
     out.append(text[pos:])

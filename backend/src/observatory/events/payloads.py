@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING, Any, Final
 from pydantic import BaseModel, ConfigDict, model_validator
 from pydantic_core import PydanticCustomError
 
-from observatory.core.logging import _normalize_key
+from observatory.core.logging import normalize_key
 from observatory.events.text import is_safe_line
 from observatory.events.tree import Pointer, canonical_text, pointer_order, utf8_length
 
@@ -45,7 +45,7 @@ USAGE_TOKEN_KEYS: Final = frozenset(
 
 def denied_name(name: str) -> bool:
     """True if ``name``, normalised as in ADR-0005, contains a denylisted word."""
-    normalized = _normalize_key(name)
+    normalized = normalize_key(name)
     return any(word in normalized for word in CONTENT_DENYLIST)
 
 
