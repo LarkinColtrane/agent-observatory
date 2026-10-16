@@ -910,4 +910,4 @@ AO-P2-006 fixes.
 
 ## Review
 
-- Reviewer A: APPROVE (round 4) · Reviewer B: APPROVE_WITH_NOTES (round 4, notes applied) — `docs/reviews/phase-2-contract-review.md`.
+- Contract: Reviewer A APPROVE (round 4) · Reviewer B APPROVE_WITH_NOTES (round 4, notes applied). Clarifications C0–C8: both APPROVE (round 5). Freeze review with implementation (AO-P2-006, C9–C26): Reviewer A APPROVE · Reviewer B APPROVE (round 6) — `docs/reviews/phase-2-contract-review.md`.

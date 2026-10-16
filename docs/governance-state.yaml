@@ -144,3 +144,6 @@ pending_tags:
   - tag: phase-P1-v1.0.0
     commit: self
     message: Agent Observatory Phase 1 engineering foundation, Level 3 gate passed (items 1-11) and signed off by Reviewer A and Reviewer B.
+  - tag: contract-event-protocol-v1.0.0
+    commit: self
+    message: Agent Observatory universal event protocol contract (ADR-0008 with clarifications C0-C26) v1.0.0, frozen after adversarial implementation review (AO-P2-006) by Reviewer A and Reviewer B.

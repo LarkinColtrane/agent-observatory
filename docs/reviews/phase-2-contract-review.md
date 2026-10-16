@@ -83,8 +83,24 @@ and C4 are applied (`d79215a`). Reviewer A's C4 note was passed to AO-P2-003
 as a test requirement: only `load_recorded` sets the private rules version,
 and it never downgrades.
 
+## Round 6: adversarial implementation review (AO-P2-006, `918050c` → `af8f58d`), A APPROVE, B APPROVE
+
+This is the freeze review that ADR-0003 §3 requires. Fresh reviewer agents
+attacked the implementation and the contract text together; the findings
+and dispositions are in `docs/reviews/phase-2-reviews.md`. The contract
+gained clarifications C9–C13 from implementation and amendments C14–C26
+from this review. Each one tightens the contract or makes it exact; none
+changes the design.
+
+Reviewer B derived the canonical bytes, fingerprints, derived event ids and
+the trace digest from ADR-0008 alone, and they matched the implementation.
+Both reviewers state that ADR-0008 with C0–C26 can be frozen as
+`contract-event-protocol-v1.0.0`.
+
 <!-- final-verdicts -->
 - **Reviewer A final outcome:** APPROVE — AO-P2-002 round 4 (`bf627d7`)
 - **Reviewer B final outcome:** APPROVE_WITH_NOTES — AO-P2-002 round 4 (`bf627d7`), notes applied before merge
 - **Reviewer A final outcome:** APPROVE — ADR-0008 clarifications C0–C8 (`5894c26`)
 - **Reviewer B final outcome:** APPROVE — ADR-0008 clarifications C0–C8 (`5894c26`), wording notes applied in `d79215a`
+- **Reviewer A final outcome:** APPROVE — ADR-0008 with C0–C26, freeze review AO-P2-006 round 3 (`af8f58d`)
+- **Reviewer B final outcome:** APPROVE — ADR-0008 with C0–C26, freeze review AO-P2-006 round 3 (`af8f58d`)
