@@ -1,0 +1,87 @@
+task_id: AO-P2-007
+from: validation-agent
+to: coordinator
+status: complete
+commit: 8dd7160
+branch: p2/007-gate
+summary: >
+  Executed Level 3 gate items 1-11 for Phase 2 from a fresh clone of GitHub
+  main at 8dd7160, without having built any of Phase 2. The runs covered: full
+  suites with real Postgres 16 and Redis, lint, format, strict typecheck and
+  import-linter, pre-commit, Docker via the CI containers job on 8dd7160,
+  migrations, and security scans. Item 9 is a 505-case failure-injection run
+  of the protocol's own failure modes through parse_event, validate_event,
+  classify_duplicate and canonical_order. Items 1-9 and 11 pass. Item 10
+  waits for the phase gate review, and item 12 is the coordinator's at
+  closure. Every item of the owner's 44-item checklist is answered: 42
+  pass, 1 not_applicable (33, frontend unchanged), 1 not_run (44, recovery
+  tag at closure).
+inspected:
+  - docs/phase-quality-gates.md
+  - docs/phases/P2-plan.md
+  - docs/phases/P2-closure-checklist.md
+  - docs/phases/P1-gate-report.md
+  - docs/adr/0008-universal-event-protocol.md
+  - docs/adr/0007-typed-usage-telemetry-in-logs.md
+  - docs/adr/0005-phase-1-foundation-contract.md
+  - docs/reviews/phase-2-reviews.md
+  - docs/reviews/phase-2-contract-review.md
+  - docs/governance-state.yaml
+  - docs/technical-debt.yaml
+  - docs/assumptions.yaml
+  - docs/rollback-policy.md
+  - .github/workflows/governance.yml
+  - backend/src/observatory/events
+  - backend/src/observatory/core/logging.py
+  - backend/src/observatory/core/telemetry.py
+  - backend/tests/fixtures/events
+searched_for_reuse:
+  - query: existing rehearsal and failure-injection scripts
+    result: >
+      Did not reuse the coordinator's rehearsal script. Ran independent commands
+      and wrote fi_protocol.py (505 cases), fi_internal_error.py and
+      probe_logging.py outside the repository.
+changes:
+  - {path: docs/phases/P2-gate-report.md, kind: added, note: gate rows 1-12, observations, 44-item checklist, rollback, evidence appendix}
+  - {path: docs/phases/P2-tasks/AO-P2-007.handoff.yaml, kind: added, note: this handoff}
+contracts:
+  consumed: [docs/adr/0005-phase-1-foundation-contract.md@contract-phase1-foundation-v1.0.0]
+  changed: []
+acceptance_criteria:
+  - {id: AC1, met: true, evidence: "docs/phases/P2-gate-report.md items 1-9 and 11 pass with exact commands. Item 9 has 505 of 505 cases matching ADR-0008 sections 12 and 15 (malformed, oversized, duplicate and conflicting, out-of-order, future-version, secret-bearing and usage attacks), 0 values echoed, all 15 reject codes observed, and a worst 64 KiB case of 155 ms. Item 10 is not_run until the phase gate review; item 12 is recorded at closure"}
+  - {id: AC2, met: true, evidence: "docs/phases/P2-gate-report.md checklist: 44 rows, 42 pass, 1 not_applicable (33, written reason), 1 not_run (44), 0 fail"}
+checks:
+  - level: L1
+    command: python -I scripts/check-governance.py && python -I scripts/check-artifacts.py (gate items 2 and 11, on 8dd7160 and on p2/007-gate)
+    ran: true
+    result: pass
+    evidence: "checker PASS, register counts: assumptions=11, debt=24 (open debt=16); artifacts PASS"
+  - level: L2
+    command: Level 3 gate items 1-9 from a fresh clone (each command is in docs/phases/P2-gate-report.md)
+    ran: true
+    result: pass
+    evidence: "backend 1400 passed / 0 skipped / 98.74%; frontend 10; governance 214; CI run 38924710919 success (6 jobs); alembic heads=1; gitleaks no leaks; pip-audit and npm audit clean; bandit 0; failure injection 505/505"
+risks_and_open_questions:
+  - >
+    Proposed TD-030 (low, C1, owner reviewer-a): the event JSON key-name
+    secret test uses ADR-0005 is_secret_key only. C20's "normalised name ends
+    in pwd" rule applies only to text-tier key/value pairs. So an extension key
+    such as MYSQL_PWD or db_pwd with a plain (not credential-shaped) value is
+    accepted, while "MYSQL_PWD=<value>" in text is secret_detected.
+    Suggested repayment: a secret-rules patch (SECRET_RULES_VERSION 2, ADR-0008
+    section 16 security exception, Reviewer A sign-off) that applies the
+    text-tier secret-name rule to JSON keys. Until then, Reviewer A rejects
+    *pwd extension keys in P3 adapter review. The coordinator should register
+    it and decide whether it blocks P3 or P11. It does not block P2.
+  - Item 9 covers only the protocol's own failure modes; there is no running event service until P4 (P2 plan).
+  - core.logging masks secret-named keys and URL userinfo (ADR-0005 section 3) but not bare credential-shaped tokens in log text. This is unchanged since P1 and is not a regression. The owner may consider adopting the event credential tier in logs.
+  - Item 6 rests on the CI containers job (images not built locally). npm audit signatures ran only in CI.
+new_assumptions: []
+new_debt: [TD-030]
+specialist_review_needed: []
+rollback: n/a (report only)
+next_steps: >
+  The coordinator registers TD-030 (or declines it with a reason). Reviewers A
+  and B then run the phase gate review on 8dd7160 and this report (item 10).
+  The gate commit is merged, phase-P2-v1.0.0 is created by release-tags, and
+  items 12 and 44 are recorded at closure.
