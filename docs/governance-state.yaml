@@ -41,7 +41,7 @@ phases:
     status: in_progress                 # opened 2026-10-12 once TD-022 was repaid (AO-P2-001, ADR-0007)
     plan: docs/phases/P2-plan.md
     blocked_by: []
-  - {id: P3, name: Adapter / SDK layer, status: not_started, blocked_by: [TD-012, TD-024, TD-027]}
+  - {id: P3, name: Adapter / SDK layer, status: not_started, blocked_by: [TD-012, TD-024, TD-027, TD-030]}
   - {id: P4, name: Agent state engine, status: not_started, blocked_by: []}
   - {id: P5, name: Realtime observability, status: not_started, blocked_by: []}
   - {id: P6, name: Operations dashboard, status: not_started, blocked_by: [TD-013, TD-017]}

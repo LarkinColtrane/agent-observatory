@@ -423,3 +423,20 @@ debt:
     blocks: [P3]
     repayment_trigger: A secret-rules patch release (ADR-0008 section 16 security exception, Reviewer A sign-off) makes a whole-line key mask the rest of the line even when the value starts with a quote, in observatory.events and core.logging, with tests.
     recorded: 2026-10-16
+  - id: TD-030
+    title: Event key-name secret check misses the C20 pwd suffix
+    description: >
+      ADR-0008 section 10.3 treats a JSON key as secret-named only under the
+      ADR-0005 key rules; C20 added keys whose normalised name ends in "pwd"
+      for the text tier only. So an extension key such as MYSQL_PWD with a
+      plain value is accepted, while the text MYSQL_PWD=... is caught (found by
+      the AO-P2-007 gate validator). Follows the frozen wording, not C20's
+      intent. Extension keys are declared statically by P3 adapters and
+      reviewed by Reviewer A, so the gap must be closed before adapters ship.
+    severity: low
+    status: open
+    owner: reviewer-a
+    component: C1
+    blocks: [P3]
+    repayment_trigger: A secret-rules patch release (ADR-0008 section 16 security exception, Reviewer A sign-off) applies the pwd-suffix rule to JSON key names too, with tests; a superseding ADR records it.
+    recorded: 2026-10-16
