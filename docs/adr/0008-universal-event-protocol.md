@@ -829,7 +829,8 @@ AO-P2-006 fixes.
   XBA, XBB, XBC, XBD, XDR, XPD, XPT, XSU, XTS, XUA and XXX. The X-prefixed
   national and regional currencies (XAF, XCD, XCG, XOF, XPF) are allowed.
 - **C17 (names with spaces; loosening).** A provider tool or model name
-  outside ToolName or ModelName is mapped by the adapter to `h.` followed by
+  outside ToolName or ModelName, or one that starts with `h.`, is mapped by
+  the adapter to `h.` followed by
   the first 32 hex characters of `SHA-256(UTF-8(name))`, the same injective
   rule as §4. Loosening a scalar rule is a minor version (§16).
 - **C18 (already redacted).** A value counts as already redacted only if it
@@ -837,8 +838,9 @@ AO-P2-006 fixes.
   end of the string. Any other value that starts with `[REDACTED]` is a hit
   in the scan, and `sanitize_text` masks the whole value extent. When a
   credential detector masks only part of a key/value or option value, the
-  rest of that value is masked too. The same rule applies to ADR-0005's
-  `core.logging` scrubber.
+  rest of that value is masked too. On a whole-line key (`Cookie`,
+  `Authorization`), the value is the rest of the line, as in ADR-0005. The
+  same rule applies to ADR-0005's `core.logging` scrubber.
 - **C19 (quoted values).** In the text tier, a value that starts with `'` or
   `"` extends to the matching unescaped quote, or to the end of the string.
 - **C20 (CLI coverage).** Each of these over-masks, which is the declared
@@ -865,6 +867,9 @@ AO-P2-006 fixes.
   `parse_event`, `validate_event` or, for stored rows only, `load_recorded`.
   `Event.model_validate_json` and `Event.model_validate_strings` raise.
   `Event` validation is strict whatever `strict=` argument the caller passes.
+  `Event` construction also runs check 7, and refuses JSON-mode validation,
+  including through a `TypeAdapter` or an enclosing model. `Event` and
+  `RecordedEvent` cannot be subclassed (R-A-P2-006-13, -15).
 - **C23 (recorded rules).** Only `load_recorded` can set an event's rules
   version; no public helper can. P4 calls `load_recorded` only on rows read
   from its own event store, and ingestion uses only `parse_event`.
