@@ -339,6 +339,8 @@ debt:
     blocks: [P3]
     repayment_trigger: The four shapes in R-A-002-301..304 are masked with linear-time patterns and tests, before adapters (P3) start sending third-party text into logs.
     recorded: 2026-10-11
+    history:
+      - "2026-10-20: scope widened (P2 gate observation 3, phase gate review GATE-02 and B-G-02): core.logging has no credential-shape detection, so bare sk-..., JWT, bearer and similar tokens after a non-secret key or inside exception text pass through log text. observatory.events has these detectors (ADR-0008 section 10.3); repaying TD-012 also reuses or mirrors them in core.logging, with tests."
   - id: TD-023
     title: Readiness failures log once per caller during an outage
     description: >
@@ -424,7 +426,7 @@ debt:
     repayment_trigger: A secret-rules patch release (ADR-0008 section 16 security exception, Reviewer A sign-off) makes a whole-line key mask the rest of the line even when the value starts with a quote, in observatory.events and core.logging, with tests.
     recorded: 2026-10-16
   - id: TD-030
-    title: Event key-name secret check misses the C20 pwd suffix
+    title: Event key-name secret check misses the pwd suffix and other credential key names
     description: >
       ADR-0008 section 10.3 treats a JSON key as secret-named only under the
       ADR-0005 key rules; C20 added keys whose normalised name ends in "pwd"
@@ -433,10 +435,14 @@ debt:
       the AO-P2-007 gate validator). Follows the frozen wording, not C20's
       intent. Extension keys are declared statically by P3 adapters and
       reviewed by Reviewer A, so the gap must be closed before adapters ship.
-    severity: low
+      Wider than the pwd suffix (phase gate review GATE-01): keys such as
+      passphrase, pw, privkey, session_key, signing_key and jwt are not
+      secret-named under ADR-0005 either. Until repaid, Reviewer A rejects such
+      keys in the P3 adapter review.
+    severity: medium
     status: open
     owner: reviewer-a
     component: C1
     blocks: [P3]
-    repayment_trigger: A secret-rules patch release (ADR-0008 section 16 security exception, Reviewer A sign-off) applies the pwd-suffix rule to JSON key names too, with tests; a superseding ADR records it.
+    repayment_trigger: A secret-rules patch release (ADR-0008 section 16 security exception, Reviewer A sign-off) extends the key-name rule (pwd suffix, passphrase, pw, privkey, session_key, signing_key, jwt and similar) to JSON key names, with tests; a superseding ADR records it.
     recorded: 2026-10-16

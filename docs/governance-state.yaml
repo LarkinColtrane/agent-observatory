@@ -38,8 +38,11 @@ phases:
     blocked_by: []
   - id: P2
     name: Universal agent event protocol
-    status: in_progress                 # opened 2026-10-12 once TD-022 was repaid (AO-P2-001, ADR-0007)
+    status: gate_review                 # Level 3 items 1-11 pass (P2-gate-report.md); item 12 at closure
     plan: docs/phases/P2-plan.md
+    gate_report: docs/phases/P2-gate-report.md
+    approved_not_applicable: []
+    review_record: docs/reviews/phase-2-gate-review.md
     blocked_by: []
   - {id: P3, name: Adapter / SDK layer, status: not_started, blocked_by: [TD-012, TD-024, TD-027, TD-030]}
   - {id: P4, name: Agent state engine, status: not_started, blocked_by: []}
@@ -132,11 +135,8 @@ contracts:
 # AO-P2-001 released with PR #9 (ce93f44); AO-P2-002 released with its PR. AO-P2-003..005 run in sequence under one owner,
 # so each claim is recorded when the previous one is released.
 # AO-P2-003..005 (w-p-protocol) completed in sequence and were released at integration (p2/003-integration).
-# AO-P2-008 (w-p-protocol) parts 1 and 2 released at integration (PR #11).
-claims:
-  - task: AO-P2-007
-    owner: validation-agent
-    paths: [docs/phases/P2-gate-report.md, docs/phases/P2-tasks/AO-P2-007.handoff.yaml]
+# AO-P2-008 released with PR #11; AO-P2-007 (validation-agent) released with the gate commit.
+claims: []
 
 # Annotated tags to be created by .github/workflows/release-tags.yml on main
 # (ADR-0005 §7). Entries stay as the audit record; existing tags are never moved.
@@ -150,3 +150,6 @@ pending_tags:
   - tag: contract-event-protocol-v1.0.0
     commit: self
     message: Agent Observatory universal event protocol contract (ADR-0008 with clarifications C0-C26) v1.0.0, frozen after adversarial implementation review (AO-P2-006) by Reviewer A and Reviewer B.
+  - tag: phase-P2-v1.0.0
+    commit: self
+    message: Agent Observatory Phase 2 universal agent event protocol, Level 3 gate passed (items 1-11) and signed off by Reviewer A and Reviewer B.
