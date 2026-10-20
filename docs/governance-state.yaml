@@ -38,10 +38,11 @@ phases:
     blocked_by: []
   - id: P2
     name: Universal agent event protocol
-    status: gate_review                 # Level 3 items 1-11 pass (P2-gate-report.md); item 12 at closure
+    status: closed
     plan: docs/phases/P2-plan.md
     gate_report: docs/phases/P2-gate-report.md
     approved_not_applicable: []
+    gate_tag: phase-P2-v1.0.0           # annotated (7fb829b) -> d67b104; created by release-tags run 39350303943
     review_record: docs/reviews/phase-2-gate-review.md
     blocked_by: []
   - {id: P3, name: Adapter / SDK layer, status: not_started, blocked_by: [TD-012, TD-024, TD-027, TD-030]}
