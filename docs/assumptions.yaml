@@ -26,6 +26,7 @@ assumptions:
     history:
       - 2026-10-10: validation re-targeted from Phase 1 to Phase 2 (ADR-0003, review B-05/A-04).
       - 2026-10-12: P2 evidence (AO-P2-005) — three structurally different synthetic shapes (a Claude/Codex-like transcript, generic orchestrator webhooks, a minimal custom agent) map to the same canonical projection; the unmappable fields are listed in docs/phases/P2-tasks/AO-P2-005.handoff.yaml and are almost all content deliberately excluded by ADR-0008 section 10.4. Still open because the shapes are synthetic; to be validated against real provider data by the P3 adapters (review_phase moved to P3).
+      - "2026-10-20: event-protocol v1 is frozen (contract-event-protocol-v1.0.0) with this assumption open on synthetic evidence only, which supersedes the Phase 2 wording of the validation plan; real P3 provider needs that are additive become a minor version (ADR-0008 section 16), a breaking need means v2 with its own frozen tag (phase gate review B-G-01)."
 
   - id: A-002
     statement: >
